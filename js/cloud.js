@@ -1,15 +1,11 @@
-/**
- * MÓDULO DE RED Y PERSISTENCIA (cloud.js)
- * Dependencias implícitas globales: dbUrl, SECURITY_TOKEN, tasks, customAreas, customContexts
- * Responsabilidad: Gestión de peticiones HTTP hacia Google Apps Script y persistencia local (localStorage).
- */
-
 function getSecureDbUrl() {
-    if (!dbUrl) return "";
+    // SSOT: Leemos siempre de window
+    const currentUrl = window.dbUrl || "";
+    if (!currentUrl) return "";
     
-    const separator = dbUrl.includes('?') ? '&' : '?';
-    
-    return dbUrl + separator + 'token=' + SECURITY_TOKEN;
+    const separator = currentUrl.includes('?') ? '&' : '?';
+    // Se asume que SECURITY_TOKEN está declarado en otro lugar de cloud.js
+    return currentUrl + separator + 'token=' + SECURITY_TOKEN;
 }
 
 async function saveData() {
@@ -17,7 +13,9 @@ async function saveData() {
     localStorage.setItem('leo_custom_areas', JSON.stringify(customAreas));
     localStorage.setItem('leo_custom_contexts', JSON.stringify(customContexts));
     
-    if (!dbUrl) return;
+    // SSOT: Verificamos la variable global
+    if (!window.dbUrl) return; 
+    
     showSyncStatus('saving');
     try {
         const response = await fetch(getSecureDbUrl(), { 
@@ -38,15 +36,26 @@ async function saveData() {
 }
 
 async function loadDataFromCloud() {
-    // FUENTE ÚNICA DE VERDAD: Acceso exclusivo al estado global
+    // SSOT: Acceso exclusivo al estado global
     const currentUrl = window.dbUrl || '';
-    const currentApiKey = window.customApiKey || '';
 
     if (!currentUrl || currentUrl.trim() === "" || currentUrl.includes("nocache")) {
         console.error(">> ABORTADO: La URL en window.dbUrl está vacía o es inválida.");
         return false;
     }
 
+    // RESTAURACIÓN DEL BLOQUE AMPUTADO
+    try {
+        const targetUrl = getSecureDbUrl() || currentUrl;
+        const noCacheUrl = targetUrl + (targetUrl.includes('?') ? '&' : '?') + 'nocache=' + Date.now();
+        
+        console.log(">> Interrogando al servidor...");
+        const response = await fetch(noCacheUrl, { redirect: 'follow' });
+        
+        if (!response.ok) throw new Error('Status HTTP: ' + response.status);
+        
+        const textData = await response.text();
+        if (textData.trim().startsWith('<')) throw new Error('El servidor devolvió HTML');
 
         const data = JSON.parse(textData);
         if (Array.isArray(data)) { 
