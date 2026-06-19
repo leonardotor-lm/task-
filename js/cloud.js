@@ -38,11 +38,12 @@ async function saveData() {
 }
 
 async function loadDataFromCloud() {
-    // Fuente Única de Verdad: Solo consultamos el objeto global
-    const currentUrl = window.dbUrl || ''; 
-    
+    // FUENTE ÚNICA DE VERDAD: Acceso exclusivo al estado global
+    const currentUrl = window.dbUrl || '';
+    const currentApiKey = window.customApiKey || '';
+
     if (!currentUrl || currentUrl.trim() === "" || currentUrl.includes("nocache")) {
-        console.error(">> ABORTADO: La URL está vacía o mal formada en window.dbUrl.");
+        console.error(">> ABORTADO: La URL en window.dbUrl está vacía o es inválida.");
         return false;
     }
 
