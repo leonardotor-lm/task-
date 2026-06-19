@@ -1,9 +1,11 @@
 /** MÓDULO DE INTERFAZ (ui.js) */
-function getAddTaskFormData() {
-    // Función auxiliar para leer inputs sin riesgo de crash (si no existe, devuelve '')
-    const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
-    const isChecked = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
 
+// --- UTILIDADES GLOBALES DEL DOM ---
+const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+const isChecked = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
+// -----------------------------------
+
+function getAddTaskFormData() {
     const parentIdRaw = getVal('parentInput');
     const rawDate = getVal('dateInput');
     const rawTags = getVal('tagsInput'); // Lectura segura
@@ -24,9 +26,6 @@ function getAddTaskFormData() {
 }
 window.getAddTaskFormData = getAddTaskFormData;
 function getEditTaskFormData() {
-    const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
-    const isChecked = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
-
     const newParentIdRaw = getVal('editParentInput');
     const rawTags = getVal('editTagsInput');
 
