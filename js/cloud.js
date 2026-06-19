@@ -38,16 +38,14 @@ async function saveData() {
 }
 
 async function loadDataFromCloud() {
-    if (!dbUrl) return false;
-    showSyncStatus('loading');
-    try {
-        const res = await fetch(getSecureDbUrl(), { method: 'GET', redirect: 'follow' });
-        if (!res.ok) throw new Error("Fallo HTTP: " + res.status);
-        const textData = await res.text();
-        
-        if (textData.trim().startsWith('<')) {
-            throw new Error("La URL devolvió código HTML. Revisá los permisos de tu Apps Script.");
-        }
+    // Fuente Única de Verdad: Solo consultamos el objeto global
+    const currentUrl = window.dbUrl || ''; 
+    
+    if (!currentUrl || currentUrl.trim() === "" || currentUrl.includes("nocache")) {
+        console.error(">> ABORTADO: La URL está vacía o mal formada en window.dbUrl.");
+        return false;
+    }
+
 
         const data = JSON.parse(textData);
         if (Array.isArray(data)) { 
