@@ -2,6 +2,11 @@
 window.DB_URL_KEY = 'leo_db_url_key';
 window.API_KEY_STORAGE_KEY = 'leo_api_key_storage_key';
 
+// --- INYECCIÓN SSOT: Estado Visual Base Garantizado ---
+window.currentState = window.currentState || { view: 'area', selectedArea: 'Inbox' };
+window.currentFilters = window.currentFilters || { search: '', status: 'pending', priority: 'all', context: 'all' };
+window.currentSort = window.currentSort || { by: 'date', order: 'asc' };
+// ------------------------------------------------------
 function readDiskSafely(key) {
     try {
         return localStorage.getItem(key) || '';
