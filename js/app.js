@@ -342,10 +342,6 @@ async function saveSettings() {
         window.dbUrl = newUrl;
         window.customApiKey = newApiKey;
 
-        // INYECCIÓN QUIRÚRGICA: Sincronización de referencias locales tras el guardado
-        dbUrl = window.dbUrl;
-        customApiKey = window.customApiKey;
-
         closeSettingsModal();
         showNotice("Configuración guardada.");
         
