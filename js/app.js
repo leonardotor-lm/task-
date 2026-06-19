@@ -56,10 +56,7 @@ window.quickAddSubtask = quickAddSubtask;
 // INICIALIZACIÓN SECUENCIAL Y ASÍNCRONA
 window.onload = async () => { 
     try {
-        // --- 1. SINCRONIZACIÓN DE VARIABLES LOCALES ---
-        dbUrl = window.dbUrl;
-        customApiKey = window.customApiKey;
-
+        
         // --- 2. ENLACE DE MEMORIA PRIMARIO ---
         if (typeof syncGlobals === 'function') syncGlobals();
 
