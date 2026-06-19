@@ -332,7 +332,6 @@ function toggleSidebar(force) { const sidebar = document.getElementById('sidebar
 
 window.openAddTaskModal = openAddTaskModal;
 window.closeAddTaskModal = closeAddTaskModal;
-window.openEditModal = openEditModal;
 window.closeEditModal = closeEditModal;
 window.openBulkMoveModal = openBulkMoveModal;
 window.closeBulkMoveModal = closeBulkMoveModal;
@@ -672,5 +671,4 @@ const pruned = (typeof window.pruneTree === 'function' && typeof tasks !== 'unde
 };
 
 window.buildTaskRows = buildTaskRows;
-window.renderTasks = renderTasks;
 
