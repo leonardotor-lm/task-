@@ -1,0 +1,413 @@
+/* ========================================== */
+/* DISEÑO MÓVIL (SANEADO - ESPECIFICIDAD TOTAL) */
+/* ========================================== */
+
+:root {
+    /* Paleta idéntica al Tailwind de Escritorio */
+    --bg-main: #122028; /* navy-800 */
+    --bg-secondary: #1D313C; /* navy-700 */
+    --text-main: #FDFDFD; /* navy-50 */
+    --text-sec: #8A9DB5; /* navy-300 */
+    --accent: #F6723A; /* brand-500 */
+    --border-color: #324252; /* navy-600 */
+}
+
+body, html {
+    background-color: var(--bg-main) !important;
+    color: var(--text-main) !important;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    height: 100vh;
+    overflow: hidden; /* Previene scroll global, el scroll va en la lista */
+}
+
+/* Blindaje: Eliminamos márgenes globales y forzamos layout */
+#mobile-root, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: var(--bg-main) !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+/* Estructura de la lista */
+#mobileTaskList {
+    padding: 16px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+}
+
+/* --- CABECERA DE VISTA (Estilo Escritorio) --- */
+.mobile-header-view {
+    padding: 24px 16px 16px 16px !important;
+    background-color: var(--bg-main) !important;
+    border-bottom: 1px solid transparent !important; /* Mantiene la métrica sin mostrar línea */
+}
+
+.view-title {
+    font-size: 28px !important;
+    font-weight: 700 !important;
+    color: var(--text-main) !important;
+    margin: 0 0 4px 0 !important;
+    line-height: 1.2 !important;
+}
+
+.view-subtitle {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #11caa0 !important; /* Verde menta del escritorio */
+    margin: 0 !important;
+    letter-spacing: 0.5px !important;
+}
+
+/* --- LISTA PLANA DE TAREAS --- */
+.mobile-task-list-container {
+    padding: 0 16px 80px 16px !important; /* El 80px inferior protege el contenido del FAB */
+}
+
+.task-row {
+    display: flex !important;
+    align-items: center !important;
+    padding: 16px 0 !important;
+    border-bottom: 1px solid #1e293b !important; /* Línea divisoria muy tenue */
+    background: transparent !important;
+}
+
+/* --- CHECKBOX (El ancla interactiva) --- */
+.btn-check-square {
+    width: 24px !important;
+    height: 24px !important;
+    flex-shrink: 0 !important;
+    margin-right: 14px !important;
+    border: 2px solid #64748b !important;
+    border-radius: 4px !important;
+    background: transparent !important;
+    color: transparent !important; /* Oculta el ✓ hasta completarlo */
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+.task-row.completed .btn-check-square {
+    background-color: var(--text-sec) !important;
+    border-color: var(--text-sec) !important;
+    color: var(--bg-main) !important; /* El ✓ se vuelve del color del fondo */
+}
+
+/* --- CONTENIDO TEXTUAL --- */
+.task-content {
+    flex: 1 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.task-title {
+    font-size: 15px !important;
+    font-weight: 400 !important;
+    color: var(--text-main) !important;
+    line-height: 1.4 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+.task-row.completed .task-title {
+    text-decoration: line-through !important;
+    color: var(--text-sec) !important;
+}
+
+/* --- METADATOS (Área, Contexto, Fecha) --- */
+.task-subtext {
+    font-size: 12px !important;
+    color: var(--text-sec) !important;
+    margin-top: 4px !important;
+}
+
+.meta-dot {
+    margin: 0 4px !important;
+    opacity: 0.5 !important;
+}
+
+.meta-context {
+    color: #c084fc !important; /* Violeta/Magenta replicado del escritorio */
+}
+
+.task-meta-right {
+    margin-left: 12px !important;
+    flex-shrink: 0 !important;
+}
+
+.meta-date {
+    font-size: 12px !important;
+    color: #f97316 !important; /* Naranja/Coral replicado del escritorio */
+    font-weight: 500 !important;
+}
+container.innerHTML = tareasAProcesar.map(task => {
+        const esCompletada = task.completed ? 'completed' : '';
+        const titulo = task.name || task.text || 'Tarea sin título';
+        
+        // Emulamos el formato "Personal • @Contexto" del escritorio.
+        const areaTexto = task.area ? task.area : 'Inbox';
+        const subtext = `<span class="meta-area">${areaTexto}</span>`; 
+        
+        const fechaVal = task.date || task.dueDate || task.fecha;
+        const fechaHtml = fechaVal ? `<span class="meta-date">${fechaVal}</span>` : '';
+        const checked = task.completed ? '✓' : '';
+        
+        return `
+        <div class="task-row ${esCompletada}">
+            <button class="btn-check-square" onclick="window.toggleMobileTask('${task.id}')">
+                ${checked}
+            </button>
+            <div class="task-content">
+                <div class="task-title">${titulo}</div>
+                <div class="task-subtext">${subtext}</div>
+            </div>
+            <div class="task-meta-right">
+                ${fechaHtml}
+            </div>
+        </div>
+        `;
+    }).join('');
+
+    /* --- BARRA INFERIOR DE NAVEGACIÓN Y ENTRADA --- */
+.mobile-bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: var(--bg-main);
+    border-top: 1px solid var(--border-color);
+    padding: 12px 16px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 50;
+}
+
+.mobile-input-wrapper {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+}
+
+.mobile-input {
+    flex: 1;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 15px;
+    outline: none;
+}
+
+.mobile-input::placeholder {
+    color: var(--text-sec);
+}
+
+.mobile-add-btn {
+    background-color: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    width: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.mobile-nav-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 4px;
+}
+
+.nav-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-sec);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    cursor: pointer;
+}
+
+#mobileTaskList {
+    padding-bottom: 120px !important; /* Espacio para que la barra inferior no tape tareas */
+    height: calc(100vh - 160px); /* Ajuste dinámico */
+    overflow-y: auto;
+}
+
+    /* --- PANTALLA COMPLETA: MENÚ DE VISTAS --- */
+.mobile-fullscreen-view {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background-color: var(--bg-main) !important; /* Fondo sólido, opaco */
+    z-index: 9999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.mobile-fullscreen-view.hidden {
+    display: none !important;
+}
+
+/* Encabezado de la pantalla de navegación */
+.fullscreen-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 16px !important;
+    background-color: var(--bg-secondary) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+}
+
+.fullscreen-close {
+    background: transparent !important;
+    border: none !important;
+    color: var(--text-main) !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 8px !important;
+    margin-left: -8px !important;
+}
+
+/* Evita el secuestro del clic por el SVG */
+.fullscreen-close svg {
+    pointer-events: none !important;
+}
+
+.fullscreen-title {
+    margin: 0 !important;
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    color: var(--text-main) !important;
+}
+
+/* Área de contenido para la lista de vistas */
+.fullscreen-body {
+    flex: 1 !important;
+    padding: 20px 16px !important;
+    overflow-y: auto !important;
+}
+
+/* Estilos aplicados a los botones inyectados por JS */
+.menu-section-title {
+    color: var(--text-sec) !important;
+    font-size: 12px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    margin: 24px 0 12px 0 !important;
+    border: none !important;
+    display: block !important;
+}
+
+.fullscreen-body .menu-section-title:first-child {
+    margin-top: 0 !important;
+}
+
+.btn-menu-option {
+    width: 100% !important;
+    text-align: left !important;
+    background: transparent !important;
+    color: var(--text-main) !important;
+    border: none !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    padding: 16px 8px !important;
+    border-radius: 0 !important;
+    font-size: 16px !important;
+    cursor: pointer !important;
+}
+    
+    /* Estilos para los elementos que inyecta JS (buildViewMenu) */
+.menu-section-title {
+    color: var(--text-sec) !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    margin: 16px 0 8px 0 !important;
+    border: none !important;
+}
+
+.btn-menu-option {
+    width: 100% !important;
+    text-align: left !important;
+    background: var(--bg-main) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border-color) !important;
+    padding: 14px 16px !important;
+    border-radius: 8px !important;
+    margin-bottom: 8px !important;
+    font-size: 15px !important;
+    cursor: pointer !important;
+}
+/* Obliga al clic a traspasar el SVG e impactar en el botón */
+.nav-btn svg, .mobile-modal-close svg {
+    pointer-events: none !important;
+}
+/* Forzar visibilidad absoluta */
+#viewMenuModal.hidden {
+    display: none !important;
+}
+
+#viewMenuModal {
+    display: flex !important; /* Sobrescribe cualquier 'hidden' */
+    z-index: 9999 !important; /* Lo trae al frente de todo */
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.mobile-modal-content {
+    min-height: 200px !important; /* Asegura que no se colapse a 0px */
+    width: 100% !important;
+    pointer-events: auto !important;
+}
+/* --- ADAPTACIÓN MÓVIL DEL MODAL DE EDICIÓN --- */
+    #editModal {
+    background-color: var(--bg-main) !important;
+    padding: 0 !important;
+    align-items: flex-start !important;
+    z-index: 999999 !important; /* Fuerza al modal a estar por encima de todo */
+}
+#editModal {
+    background-color: var(--bg-main) !important;
+    padding: 0 !important;
+    align-items: flex-start !important; /* Alinea al tope de la pantalla */
+}
+
+#editModal > div {
+    max-width: 100% !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background-color: var(--bg-main) !important;
+}
+
+/* Ajustes tipográficos para legibilidad táctil */
+#editModal input, 
+#editModal select, 
+#editModal textarea {
+    font-size: 16px !important; /* Previene el zoom automático en iOS/Android */
+    background-color: var(--bg-secondary) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border-color) !important;
+}
