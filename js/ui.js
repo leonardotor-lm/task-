@@ -460,6 +460,7 @@ function buildTaskRows(nodes, path = []) {
     // --- INYECCIÓN DE SEGURIDAD: Fallbacks para el estado global ---
     const safeState = window.currentState || { view: 'area' };
     const safeFilters = window.currentFilters || { search: '', priority: 'all', context: 'all', status: 'pending' };
+    const safeExpanded = window.expandedStates || {}; // Nuevo blindaje
     // ---------------------------------------------------------------
 
     const isTrash = safeState.view === 'trash';
@@ -470,8 +471,10 @@ function buildTaskRows(nodes, path = []) {
     return nodes.map(task => {
         const visualSubCount = task._subCount !== undefined ? task._subCount : (task.subtasks ? task.subtasks.length : 0);
         const hasChildren = visualSubCount > 0;
-        const isExpanded = isTrash || (safeState.view === 'focus' || isFiltering) ? true : (expandedStates[task.id] || false);
-        const logicalDepth = path.length + 1;
+        
+        // Uso estricto de la variable protegida
+        const isExpanded = isTrash || (safeState.view === 'focus' || isFiltering) ? true : (safeExpanded[task.id] || false);
+const logicalDepth = path.length + 1;
         const indentClass = isTrash ? 'pl-3 md:pl-5' : (indentMap[logicalDepth] || 'pl-20 md:pl-22');
         const isCompleted = task.status === 'completed';
         const isOverdue = task.date && task.date < todayStr && !isCompleted;
