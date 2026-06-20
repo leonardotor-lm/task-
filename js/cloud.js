@@ -9,7 +9,7 @@ function getSecureDbUrl() {
 }
 
 async function saveData() {
-    localStorage.setItem('leo_agenda_v11', JSON.stringify(tasks));
+    localStorage.setItem('leo_agenda_v11', JSON.stringify(window.tasks));
     localStorage.setItem('leo_custom_areas', JSON.stringify(customAreas));
     localStorage.setItem('leo_custom_contexts', JSON.stringify(customContexts));
     
@@ -21,7 +21,7 @@ async function saveData() {
         const response = await fetch(getSecureDbUrl(), { 
             method: 'POST', 
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(tasks),
+            body: JSON.stringify(window.tasks),
             redirect: 'follow'
         });
         if (!response.ok) throw new Error('Respuesta HTTP no exitosa: ' + response.status);
