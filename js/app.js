@@ -397,7 +397,7 @@ async function saveSettings() {
 }
 window.saveSettings = saveSettings;
 // CORE ENGINE HELPERS
-function findAndMutateTask(taskId, mutationFn) { function traverse(nodes) { for (let i = 0; i < nodes.length; i++) { if (nodes[i].id === taskId) { mutationFn(nodes, i); return true; } if (nodes[i].subtasks && traverse(nodes[i].subtasks)) return true; } return false; } return traverse(tasks); }
+function findAndMutateTask(taskId, mutationFn) { function traverse(nodes) { for (let i = 0; i < nodes.length; i++) { if (nodes[i].id === taskId) { mutationFn(nodes, i); return true; } if (nodes[i].subtasks && traverse(nodes[i].subtasks)) return true; } return false; } return traverse(window.tasks || []); }
 function extractTask(taskId) { let extracted = null; function walk(nodes) { for (let i = 0; i < nodes.length; i++) { if (nodes[i].id === taskId) { extracted = nodes.splice(i, 1)[0]; return true; } if (nodes[i].subtasks && walk(nodes[i].subtasks)) return true; } return false; } walk(tasks); return extracted; }
 function insertTask(taskObj, parentId) { if (parentId === 'root') tasks.unshift(taskObj); else findAndMutateTask(parentId, (nodes, i) => { if (!nodes[i].subtasks) nodes[i].subtasks = []; nodes[i].subtasks.push(taskObj); expandedStates[parentId] = true; }); }
 function getParentId(taskId) { let pId = 'root'; function search(nodes, currentParent) { for (let n of nodes) { if (n.id === taskId) { pId = currentParent; return true; } if (n.subtasks && search(n.subtasks, n.id)) return true; } return false; } search(tasks, 'root'); return pId; }
