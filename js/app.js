@@ -320,8 +320,44 @@ async function toggleTaskUniversal(id) {
             });
     renderTasks(); renderCalendar(); await saveData();
 }
-async function deleteTaskUniversal(id) { const task = getTaskById(id); if (!task) return; const performDelete = async () => { if (findAndMutateTask(id, (nodes, i) => { nodes[i].isDeleted = true; nodes[i].deletedAt = Date.now(); })) { refreshAllDropdowns(); renderTasks(); renderCalendar(); showNotice("Enviada a papelera"); await saveData(); } }; if (task.subtasks && task.subtasks.length > 0) { showConfirm("Eliminar con subtareas", `¿Enviar a papelera con sus ${task.subtasks.length} subtareas?`, performDelete, true); } else { await performDelete(); } }
+async function deleteTaskUniversal(id) { 
+    const task = typeof getTaskById === 'function' ? getTaskById(id) : null; 
+    if (!task) return; 
 
+    const performDelete = async () => { 
+        // 1. Mutación
+        const mutated = typeof findAndMutateTask === 'function' ? findAndMutateTask(id, (nodes, i) => { 
+            nodes[i].isDeleted = true; 
+            nodes[i].deletedAt = Date.now(); 
+        }) : false;
+
+        if (mutated) { 
+            // 2. Ejecución defensiva de la interfaz (evita que un error visual bloquee la red)
+            if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns(); 
+            if (typeof renderTasks === 'function') renderTasks(); 
+            if (typeof renderCalendar === 'function') renderCalendar(); 
+            if (typeof showNotice === 'function') showNotice("Enviada a papelera"); 
+            
+            // 3. Sincronización estricta SSOT antes de despachar
+            if (typeof tasks !== 'undefined') window.tasks = tasks;
+            
+            // 4. Guardado garantizado
+            if (typeof saveData === 'function') await saveData(); 
+        } 
+    }; 
+
+    // Flujo de confirmación
+    if (task.subtasks && task.subtasks.length > 0) { 
+        if (typeof showConfirm === 'function') {
+            showConfirm("Eliminar con subtareas", `¿Enviar a papelera con sus ${task.subtasks.length} subtareas?`, performDelete, true); 
+        } else {
+            await performDelete();
+        }
+    } else { 
+        await performDelete(); 
+    } 
+}
+window.deleteTaskUniversal = deleteTaskUniversal;
 // UTILIDADES Y RENDERIZADO VISUAL
 async function saveSettings() {
     console.log("Iniciando saveSettings...");
