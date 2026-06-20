@@ -59,9 +59,10 @@ async function loadDataFromCloud() {
 
         const data = JSON.parse(textData);
         if (Array.isArray(data)) { 
-            tasks = data; 
-            localStorage.setItem('leo_agenda_v11', JSON.stringify(tasks)); 
-            showSyncStatus('synced'); 
+            // SSOT: Inyección directa al estado global
+            window.tasks = data; 
+            localStorage.setItem('leo_agenda_v11', JSON.stringify(window.tasks)); 
+            showSyncStatus('synced');
             showNotice("Sincronizado");
             return true;
         }
