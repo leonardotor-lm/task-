@@ -184,9 +184,10 @@ async function addTask() {
         // IMPORTANTE: Nos aseguramos de que no arrastre propiedades de ruta viejas
     };
     
+
     // Inserción forzada
     if (data.parentId === 'root') {
-        tasks.unshift(newTask);
+        window.tasks.unshift(newTask); // <-- Inyección 1
     } else {
         let parentFound = false;
         
@@ -209,12 +210,11 @@ async function addTask() {
             return false;
         }
         
-        findAndInject(tasks);
+        findAndInject(window.tasks); // <-- Inyección 2
         
         // Si por algún motivo falló la inyección, metela en la raíz para no perderla
-        if (!parentFound) tasks.unshift(newTask);
+        if (!parentFound) window.tasks.unshift(newTask); // <-- Inyección 3
     }
-    
     // LIMPIEZA FINAL
     if (typeof closeAddTaskModal === 'function') closeAddTaskModal(); 
     if (typeof renderTasks === 'function') renderTasks(); 
