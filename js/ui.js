@@ -607,10 +607,12 @@ window.renderTasks = function() {
         function collectDeleted(nodes) { nodes.forEach(n => { if (n.isDeleted) nodesToRender.push(n); else if (n.subtasks) collectDeleted(n.subtasks); }); }
         if (typeof tasks !== 'undefined') collectDeleted(tasks); 
         nodesToRender.sort((a,b) => (b.deletedAt || 0) - (a.deletedAt || 0));
-    } else {
-const pruned = (typeof window.pruneTree === 'function' && typeof tasks !== 'undefined') ? window.pruneTree(tasks, window.currentState, window.currentFilters) : (typeof pruneTree === 'function' ? pruneTree(tasks, window.currentState, window.currentFilters) : []);        
+   } else {
+        // Uso estricto de las variables locales saneadas (state y filters)
+        const pruned = (typeof window.pruneTree === 'function' && typeof tasks !== 'undefined') ? window.pruneTree(tasks, state, filters) : (typeof pruneTree === 'function' ? pruneTree(tasks, state, filters) : []);        
         
         const isTemporalView = ['today', 'tomorrow', 'week', 'fortnight'].includes(state.view);
+    
         const hasActiveSearch = typeof filters.search === 'string' && filters.search.trim() !== '';
         const hasActivePriority = filters.priority && filters.priority !== 'all';
         const hasActiveContext = filters.context && filters.context !== 'all';
