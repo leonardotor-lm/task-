@@ -6,7 +6,7 @@ function safeParse(key, fallback) {
 }
 
 // Inicialización de la base local
-let tasks = safeParse('leo_agenda_v11', []);
+window.tasks = safeParse('leo_agenda_v11', []);
 let calendarDate = new Date();
 let customAreas = safeParse('leo_custom_areas', ["Inbox", "Trabajo", "Personal", "Estudios"]);
 let customContexts = safeParse('leo_custom_contexts', [{ name: "@casa", color: "purple" }, { name: "@oficina", color: "blue" }, { name: "@online", color: "teal" }]);
