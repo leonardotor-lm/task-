@@ -97,13 +97,20 @@ if (!textMatch) matches = false;
         
         const isNowFocused = inFocusedSubtree || (state.view === 'focus' && node.id === state.focusTargetId);
         
-        // Invocación recursiva consolidada en el ámbito global
-const prunedSubtasks = window.pruneTree(node.subtasks || [], state, filters, isNowFocused);
+    // Invocación recursiva consolidada en el ámbito global
+        const prunedSubtasks = window.pruneTree(node.subtasks || [], state, filters, isNowFocused);
         
         if (matches || prunedSubtasks.length > 0) {
-return { ...node, subtasks: prunedSubtasks, _explicitMatch: matches, _subCount: node.subtasks ? node.subtasks.length : 0 };
-                    }
-        return null;
+            return { 
+                ...node, 
+                subtasks: prunedSubtasks, 
+                _explicitMatch: matches, 
+                _subCount: node.subtasks ? node.subtasks.length : 0, // Conservación del total histórico
+                _visibleSubCount: prunedSubtasks.length // Inyección de la verdad pos-filtro
+            };
+        }
+        return null;    
+    
     }).filter(Boolean);
     
     // Eliminada la llamada a sortTasks. El ordenamiento ahora es jurisdicción de ui.js
