@@ -469,12 +469,17 @@ function buildTaskRows(nodes, path = []) {
     const todayStr = formatDateLocal(new Date());
 
     return nodes.map(task => {
-        const visualSubCount = task._subCount !== undefined ? task._subCount : (task.subtasks ? task.subtasks.length : 0);
-        const hasChildren = visualSubCount > 0;
+        // Desvinculación de la métrica histórica: el DOM obedece a la física del array
+        const hasChildren = task.subtasks && task.subtasks.length > 0;
+        
+        // Honestidad del badge: Prioridad a la cantidad sobreviviente, con fallbacks lógicos
+        const visualSubCount = task._visibleSubCount !== undefined 
+            ? task._visibleSubCount 
+            : (task._subCount !== undefined ? task._subCount : (hasChildren ? task.subtasks.length : 0));
         
         // Uso estricto de la variable protegida
         const isExpanded = isTrash || (safeState.view === 'focus' || isFiltering) ? true : (safeExpanded[task.id] || false);
-const logicalDepth = path.length + 1;
+        const logicalDepth = path.length + 1;
         const indentClass = isTrash ? 'pl-3 md:pl-5' : (indentMap[logicalDepth] || 'pl-20 md:pl-22');
         const isCompleted = task.status === 'completed';
         const isOverdue = task.date && task.date < todayStr && !isCompleted;
