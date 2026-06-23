@@ -622,8 +622,6 @@ window.navigate = function(view, areaName = null, pushHistory = true, focusId = 
     
     if (typeof window.updateUI === 'function') window.updateUI();
 };
-    };
-
 window.updateSort = function() { 
     const select = document.getElementById('sortSelect');
     const val = select ? select.value.split('-') : ['date', 'asc']; 
