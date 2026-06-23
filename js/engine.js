@@ -41,9 +41,10 @@ function calculateNextOccurrence(task, completionDateStr = null) {
 
 // TREE AND LIST RENDER LOGIC
 function containsFocusNode(node, targetId) { if (node.id === targetId) return true; if (!node.subtasks) return false; return node.subtasks.some(s => containsFocusNode(s, targetId)); }
+
 window.pruneTree = function(nodeList, state, filters, inFocusedSubtree = false) {
-if (!Array.isArray(nodeList)) return [];
-      
+    if (!Array.isArray(nodeList)) return [];
+    
     // Horizontes temporales
     const todayStr = typeof window.formatDateLocal === 'function' ? window.formatDateLocal(new Date()) : new Date().toISOString().split('T')[0];
     const tomorrowObj = new Date(); tomorrowObj.setDate(tomorrowObj.getDate() + 1); 
@@ -58,48 +59,32 @@ if (!Array.isArray(nodeList)) return [];
         
         let matches = true;
         
-        // Filtro de búsqueda
-        if (filters.search !== '') { 
-            const sTerm = filters.search.toLowerCase(); 
-            // Extracción segura de los tags a una cadena de texto
-const tagsText = Array.isArray(node.tags) ? node.tags.join(' ') : '';
-
-// Evaluación integral de búsqueda
-const textMatch = (node.name || '').toLowerCase().includes(sTerm) || 
-                  (node.area || '').toLowerCase().includes(sTerm) || 
-                  (node.context || '').toLowerCase().includes(sTerm) ||
-                  tagsText.toLowerCase().includes(sTerm); 
-
-if (!textMatch) matches = false;
+        // 1. MOTOR LÓGICO ÚNICO (AST)
+        // El nodo se evalúa contra el árbol sintáctico si existe una consulta activa.
+        if (filters && filters.hasActiveQuery && filters.ast) {
+            matches = window.SearchEngine.evaluate(node, filters.ast);
         }
         
-        // Filtros cruzados estandarizados
-        if (filters.status === 'pending' && node.status === 'completed') matches = false; 
-        if (filters.status === 'in_progress' && node.status !== 'in_progress') matches = false; 
-        if (filters.status === 'completed' && node.status !== 'completed') matches = false; 
-        if (filters.priority !== 'all' && node.priority !== filters.priority) matches = false; 
-        if (filters.context !== 'all' && node.context !== filters.context) matches = false;
-        
-        // Excepción histórica: Bypass temporal y espacial para tareas completadas
-        const isHistoricalCompleted = filters.status === 'completed';
+        // 2. ENRUTAMIENTO JERÁRQUICO SUPERIOR (AND IMPLÍCITO)
+        // El estado de navegación opera como un límite superior inquebrantable.
+        // No existe bypass por estado completado; si la vista es 'today', 
+        // solo sobreviven tareas de hoy (independientemente de lo que exija el AST).
+        if (state.view === 'today') { if (!node.date || node.date > todayStr) matches = false; }
+        else if (state.view === 'tomorrow') { if (!node.date || node.date !== tomorrowStr) matches = false; }
+        else if (state.view === 'week') { if (!node.date || node.date > nextWeekStr) matches = false; }
+        else if (state.view === 'fortnight') { if (!node.date || node.date > fortnightStr) matches = false; }
+        else if (state.view === 'area') { if (node.area !== state.selectedArea) matches = false; }
 
-        if (!isHistoricalCompleted) {
-            if (state.view === 'today') { if (!node.date || node.date > todayStr) matches = false; }
-            else if (state.view === 'tomorrow') { if (!node.date || node.date !== tomorrowStr) matches = false; }
-            else if (state.view === 'week') { if (!node.date || node.date > nextWeekStr) matches = false; }
-            else if (state.view === 'fortnight') { if (!node.date || node.date > fortnightStr) matches = false; }
-            else if (state.view === 'area') { if (node.area !== state.selectedArea) matches = false; }
-        }
-        
+        // 3. REGLAS DE FOCUS (Intactas)
         if (state.view === 'focus') { 
             if (!inFocusedSubtree && !(typeof containsFocusNode === 'function' && containsFocusNode(node, state.focusTargetId))) matches = false; 
         }
-        
         const isNowFocused = inFocusedSubtree || (state.view === 'focus' && node.id === state.focusTargetId);
         
-    // Invocación recursiva consolidada en el ámbito global
+        // 4. INCLUSIÓN CONTEXTUAL ASCENDENTE (Recursividad)
         const prunedSubtasks = window.pruneTree(node.subtasks || [], state, filters, isNowFocused);
         
+        // Si el nodo cumple las reglas, O si alguno de sus hijos sobrevivió a la poda, el padre sobrevive.
         if (matches || prunedSubtasks.length > 0) {
             return { 
                 ...node, 
@@ -109,11 +94,9 @@ if (!textMatch) matches = false;
                 _visibleSubCount: prunedSubtasks.length // Inyección de la verdad pos-filtro
             };
         }
-        return null;    
-    
+        return null;
     }).filter(Boolean);
     
-    // Eliminada la llamada a sortTasks. El ordenamiento ahora es jurisdicción de ui.js
     return filtered;
 };
 
