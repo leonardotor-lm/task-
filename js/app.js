@@ -609,21 +609,20 @@ window.navigate = function(view, areaName = null, pushHistory = true, focusId = 
     
     if (window.innerWidth < 768 && typeof toggleSidebar === 'function') toggleSidebar(false);
 
-    // Saneamiento de filtros con directiva estricta de visibilidad
-    if (window.currentFilters) {
-        window.currentFilters.search = '';
-        window.currentFilters.priority = 'all';
-        window.currentFilters.context = 'all';
-        window.currentFilters.status = (view === 'all') ? 'all' : 'pending';
-        
-        if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
-        if (document.getElementById('filterPriority')) document.getElementById('filterPriority').value = 'all';
-        if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
-        if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = window.currentFilters.status;
-    }
+    // Saneamiento de filtros: Modificamos EXCLUSIVAMENTE el DOM, no el estado global
+    const defaultStatus = (view === 'all') ? 'all' : 'pending';
+    
+    if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
+    if (document.getElementById('filterPriority')) document.getElementById('filterPriority').value = 'all';
+    if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
+    if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = defaultStatus;
+    
+    // La compilación del nuevo estado limpio se delega al orquestador
+    window.updateFilters();
     
     if (typeof window.updateUI === 'function') window.updateUI();
 };
+    };
 
 window.updateSort = function() { 
     const select = document.getElementById('sortSelect');
