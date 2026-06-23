@@ -689,8 +689,26 @@ function updateUI() {
 }
 
 // VARIOUS OTHER UTILS
-function toggleExpand(id, event) { if (event) event.stopPropagation(); expandedStates[id] = !expandedStates[id]; localStorage.setItem('leo_expanded_states', JSON.stringify(expandedStates)); renderTasks(); }
+window.toggleExpand = function(id, event) { 
+    if (event) event.stopPropagation(); 
+    
+    // Bloqueo de seguridad: Si hay filtros activos, impedimos colapsar manualmente
+    const filters = window.currentFilters || {};
+    const isFiltering = filters.hasActiveQuery || filters.search !== '' || filters.priority !== 'all' || filters.context !== 'all' || filters.status === 'in_progress' || filters.status === 'completed';
+    if (isFiltering) return;
 
+    // Sincronización estricta con el objeto global de la ventana
+    window.expandedStates = window.expandedStates || {};
+    window.expandedStates[id] = !window.expandedStates[id]; 
+    
+    localStorage.setItem('leo_expanded_states', JSON.stringify(window.expandedStates)); 
+    
+    if (typeof window.renderTasks === 'function') {
+        window.renderTasks(); 
+    } else if (typeof renderTasks === 'function') {
+        renderTasks();
+    }
+};
 // 1. Restaurar tarea
 window.restoreTask = function(id) {
     const task = tasks.find(t => t.id === id);
