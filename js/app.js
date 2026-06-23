@@ -629,12 +629,14 @@ window.updateSort = function() {
     if (typeof window.renderTasks === 'function') window.renderTasks(); 
 };
 
-// Aliasing de compatibilidad por si el HTML intenta invocar la versión antigua
-if (typeof updateSort === 'undefined') {
-    var updateSort = window.updateSort;
-}
+// --- ALIASING Y ORQUESTACIÓN ---
+window.updateSort = window.updateSort || function() { 
+    const select = document.getElementById('sortSelect');
+    const val = select ? select.value.split('-') : ['date', 'asc']; 
+    window.currentSort = { by: val[0], order: val[1] }; 
+    if (typeof window.renderTasks === 'function') window.renderTasks(); 
+};
 
-// Orquestador de interfaz actualizado (Sincronización estricta de Estado Global)
 function updateUI() {
     // 1. Puente de Estado: Forzamos la lectura de la variable mutada por la navegación
     const state = window.currentState || (typeof currentState !== 'undefined' ? currentState : { view: 'today' });
@@ -648,6 +650,25 @@ function updateUI() {
     const currentTitleText = state.view === 'area' ? `Área: ${state.selectedArea}` : titles[state.view];
     
     document.querySelectorAll('[id="view-title"]').forEach(titleEl => {
+        titleEl.innerText = currentTitleText;
+    });
+
+    const isTrash = state.view === 'trash';
+    
+    // 3. Resaltado Dinámico en Menú Lateral
+    ['nav-today', 'nav-tomorrow', 'nav-week', 'nav-fortnight', 'nav-all', 'nav-calendar', 'nav-trash'].forEach(id => { 
+        document.querySelectorAll(`[id="${id}"]`).forEach(el => { 
+            if (id === `nav-${state.view}`) { 
+                el.classList.add('bg-navy-900', 'text-brand-500', 'border-r-2', 'border-brand-500'); 
+                el.classList.remove('text-navy-300', 'border-transparent'); 
+            } else { 
+                el.classList.remove('bg-navy-900', 'text-brand-500', 'border-r-2', 'border-brand-500'); 
+                el.classList.add('text-navy-300', 'border-transparent'); 
+            } 
+        });
+    });
+    
+    document.querySelectorAll('.sidebar-area-item').forEach(el => {
         titleEl.innerText = currentTitleText;
     });
 
