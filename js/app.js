@@ -587,14 +587,15 @@ window.resetFilters = function() {
     if (typeof showNotice === 'function') showNotice("Filtros restablecidos");
 };
     // Asignación directa y forzada para evitar variables no definidas
-    window.currentSort = { by: 'date', order: 'asc' };
+    
+window.currentSort = { by: 'date', order: 'asc' };
     if (document.getElementById('sortSelect')) {
         document.getElementById('sortSelect').value = 'date-asc';
     }
     
     window.updateFilters();
     if (typeof showNotice === 'function') showNotice("Filtros restablecidos");
-};
+}; // <--- Cierre de resetFilters
 
 window.navigate = function(view, areaName = null, pushHistory = true, focusId = null) {
     if (!window.currentState) return;
@@ -605,8 +606,7 @@ window.navigate = function(view, areaName = null, pushHistory = true, focusId = 
     
     window.currentState.view = view;
     window.currentState.selectedArea = areaName;
-    window.currentState.focusTargetId = focusId;
-    
+    window.currentState.focusTargetId = focusId;    
     if (window.innerWidth < 768 && typeof toggleSidebar === 'function') toggleSidebar(false);
 
     // Saneamiento de filtros: Modificamos EXCLUSIVAMENTE el DOM, no el estado global
