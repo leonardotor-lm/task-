@@ -58,12 +58,23 @@ window.pruneTree = function(nodeList, state, filters, inFocusedSubtree = false) 
         if (node.isDeleted) return null; 
         
         let matches = true;
-        
         // 1. MOTOR LÓGICO ÚNICO (AST)
         // El nodo se evalúa contra el árbol sintáctico si existe una consulta activa.
         if (filters && filters.hasActiveQuery && filters.ast) {
             matches = window.SearchEngine.evaluate(node, filters.ast);
         }
+        
+        // --- INYECCIÓN: REGLA DE INVISIBILIDAD BASE ---
+        // Si la tarea está completada, se oculta por defecto de las vistas de trabajo.
+        // Solo sobrevive si el AST la exige explícitamente, o si estamos en "Todas las tareas".
+        if (node.status === 'completed' && matches) {
+            const requestedByAST = filters && filters.includesCompletedState;
+            const allowedByView = state.view === 'all';
+            if (!requestedByAST && !allowedByView) {
+                matches = false;
+            }
+        }
+        // ----------------------------------------------
         
         // 2. ENRUTAMIENTO JERÁRQUICO SUPERIOR (AND IMPLÍCITO)
         // El estado de navegación opera como un límite superior inquebrantable.
@@ -74,8 +85,8 @@ window.pruneTree = function(nodeList, state, filters, inFocusedSubtree = false) 
         else if (state.view === 'week') { if (!node.date || node.date > nextWeekStr) matches = false; }
         else if (state.view === 'fortnight') { if (!node.date || node.date > fortnightStr) matches = false; }
         else if (state.view === 'area') { if (node.area !== state.selectedArea) matches = false; }
-
-        // 3. REGLAS DE FOCUS (Intactas)
+       
+               // 3. REGLAS DE FOCUS (Intactas)
         if (state.view === 'focus') { 
             if (!inFocusedSubtree && !(typeof containsFocusNode === 'function' && containsFocusNode(node, state.focusTargetId))) matches = false; 
         }
