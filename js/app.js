@@ -582,20 +582,9 @@ window.resetFilters = function() {
         document.getElementById('sortSelect').value = 'date-asc';
     }
     
-    // Al invocar updateFilters, el AST se recompila en blanco automáticamente
     window.updateFilters();
     if (typeof showNotice === 'function') showNotice("Filtros restablecidos");
 };
-    // Asignación directa y forzada para evitar variables no definidas
-    
-window.currentSort = { by: 'date', order: 'asc' };
-    if (document.getElementById('sortSelect')) {
-        document.getElementById('sortSelect').value = 'date-asc';
-    }
-    
-    window.updateFilters();
-    if (typeof showNotice === 'function') showNotice("Filtros restablecidos");
-}; // <--- Cierre de resetFilters
 
 window.navigate = function(view, areaName = null, pushHistory = true, focusId = null) {
     if (!window.currentState) return;
@@ -606,22 +595,20 @@ window.navigate = function(view, areaName = null, pushHistory = true, focusId = 
     
     window.currentState.view = view;
     window.currentState.selectedArea = areaName;
-    window.currentState.focusTargetId = focusId;    
+    window.currentState.focusTargetId = focusId;
+    
     if (window.innerWidth < 768 && typeof toggleSidebar === 'function') toggleSidebar(false);
 
-    // Saneamiento de filtros: Modificamos EXCLUSIVAMENTE el DOM, no el estado global
     const defaultStatus = (view === 'all') ? 'all' : 'pending';
-    
     if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
     if (document.getElementById('filterPriority')) document.getElementById('filterPriority').value = 'all';
     if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
     if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = defaultStatus;
     
-    // La compilación del nuevo estado limpio se delega al orquestador
     window.updateFilters();
-    
     if (typeof window.updateUI === 'function') window.updateUI();
 };
+
 window.updateSort = function() { 
     const select = document.getElementById('sortSelect');
     const val = select ? select.value.split('-') : ['date', 'asc']; 
@@ -629,125 +616,49 @@ window.updateSort = function() {
     if (typeof window.renderTasks === 'function') window.renderTasks(); 
 };
 
-// --- ALIASING Y ORQUESTACIÓN ---
-window.updateSort = window.updateSort || function() { 
-    const select = document.getElementById('sortSelect');
-    const val = select ? select.value.split('-') : ['date', 'asc']; 
-    window.currentSort = { by: val[0], order: val[1] }; 
-    if (typeof window.renderTasks === 'function') window.renderTasks(); 
-};
-
 function updateUI() {
-    // 1. Puente de Estado: Forzamos la lectura de la variable mutada por la navegación
-    const state = window.currentState || (typeof currentState !== 'undefined' ? currentState : { view: 'today' });
+    const state = window.currentState || { view: 'today' };
 
     const btnBack = document.getElementById('btnBack'); 
     if (btnBack && typeof navHistory !== 'undefined' && navHistory.length > 0) btnBack.classList.remove('hidden'); 
     else if (btnBack) btnBack.classList.add('hidden');
 
-    // 2. Control de Título Central
     const titles = { 'today':'Hoy y atrasadas', 'tomorrow':'Mañana', 'week':'Esta semana', 'fortnight':'Próximos 15 días', 'all':'Todas las tareas', 'calendar':'Calendario', 'focus':'Dependencia específica', 'trash':'Papelera (10 días)' };
     const currentTitleText = state.view === 'area' ? `Área: ${state.selectedArea}` : titles[state.view];
     
-    document.querySelectorAll('[id="view-title"]').forEach(titleEl => {
-        titleEl.innerText = currentTitleText;
-    });
+    document.querySelectorAll('[id="view-title"]').forEach(el => el.innerText = currentTitleText);
 
     const isTrash = state.view === 'trash';
     
-    // 3. Resaltado Dinámico en Menú Lateral
+    // Resaltado Menú Lateral
     ['nav-today', 'nav-tomorrow', 'nav-week', 'nav-fortnight', 'nav-all', 'nav-calendar', 'nav-trash'].forEach(id => { 
         document.querySelectorAll(`[id="${id}"]`).forEach(el => { 
-            if (id === `nav-${state.view}`) { 
-                el.classList.add('bg-navy-900', 'text-brand-500', 'border-r-2', 'border-brand-500'); 
-                el.classList.remove('text-navy-300', 'border-transparent'); 
-            } else { 
-                el.classList.remove('bg-navy-900', 'text-brand-500', 'border-r-2', 'border-brand-500'); 
-                el.classList.add('text-navy-300', 'border-transparent'); 
-            } 
+            const isActive = id === `nav-${state.view}`;
+            el.classList.toggle('bg-navy-900', isActive);
+            el.classList.toggle('text-brand-500', isActive);
+            el.classList.toggle('border-r-2', isActive);
+            el.classList.toggle('border-brand-500', isActive);
+            el.classList.toggle('text-navy-300', !isActive);
         });
     });
     
-    document.querySelectorAll('.sidebar-area-item').forEach(el => {
-        titleEl.innerText = currentTitleText;
-    });
-
-    const isTrash = state.view === 'trash';
+    // Configuración visual de elementos
+    const toggleHidden = (id, cond) => document.querySelectorAll(`[id="${id}"]`).forEach(el => el.classList.toggle('hidden', cond));
+    toggleHidden('view-list', state.view === 'calendar');
+    toggleHidden('view-calendar', state.view !== 'calendar');
+    toggleHidden('filters-container', state.view === 'calendar');
+    toggleHidden('btnEmptyTrash', !isTrash);
+    toggleHidden('searchWrap', isTrash);
+    toggleHidden('filterStatus', isTrash);
+    toggleHidden('filterPriority', isTrash);
+    toggleHidden('filterContext', isTrash);
+    toggleHidden('sortSelect', isTrash);
+    toggleHidden('btnBulkMode', isTrash);
+    toggleHidden('btnResetFilters', isTrash);
+    toggleHidden('btnAIToggle', isTrash);
+    toggleHidden('filtersDivider', isTrash);
     
-    // 3. Resaltado Dinámico en Menú Lateral
-    ['nav-today', 'nav-tomorrow', 'nav-week', 'nav-fortnight', 'nav-all', 'nav-calendar', 'nav-trash'].forEach(id => { 
-        document.querySelectorAll(`[id="${id}"]`).forEach(el => { 
-            if (id === `nav-${state.view}`) { 
-                el.classList.add('bg-navy-900', 'text-brand-500', 'border-r-2', 'border-brand-500'); 
-                el.classList.remove('text-navy-300', 'border-transparent'); 
-                if(id === 'nav-trash') {
-                    const svg = el.querySelector('svg');
-                    if (svg) svg.classList.remove('text-danger-500'); 
-                }
-            } else { 
-                el.classList.remove('bg-navy-900', 'text-brand-500', 'border-r-2', 'border-brand-500'); 
-                el.classList.add('text-navy-300', 'border-transparent'); 
-                if(id === 'nav-trash') {
-                    const svg = el.querySelector('svg');
-                    if (svg) svg.classList.add('text-danger-500'); 
-                }
-            } 
-        });
-    });
-    
-    document.querySelectorAll('.sidebar-area-item').forEach(el => { 
-        if (state.view === 'area' && el.dataset.area === state.selectedArea) { 
-            el.classList.add('border-brand-500', 'bg-navy-900', 'text-brand-500'); 
-            el.classList.remove('border-transparent', 'text-navy-300'); 
-        } else { 
-            el.classList.remove('border-brand-500', 'bg-navy-900', 'text-brand-500'); 
-            el.classList.add('border-transparent', 'text-navy-300'); 
-        } 
-    });
-    
-    const toggleHiddenAll = (id, condition) => { 
-        document.querySelectorAll(`[id="${id}"]`).forEach(el => el.classList.toggle('hidden', condition)); 
-    };
-
-    toggleHiddenAll('view-list', state.view === 'calendar'); 
-    
-    if (state.view === 'calendar') { 
-        toggleHiddenAll('omnibar-container', true); 
-        document.querySelectorAll('[id="btnAIToggle"]').forEach(aiBtn => {
-            aiBtn.classList.remove('text-brand-500', 'bg-navy-700'); 
-            aiBtn.classList.add('text-navy-400');
-        });
-    }
-    
-    toggleHiddenAll('view-calendar', state.view !== 'calendar'); 
-    toggleHiddenAll('filters-container', state.view === 'calendar');
-    toggleHiddenAll('btnEmptyTrash', !isTrash);
-    toggleHiddenAll('searchWrap', isTrash);
-    toggleHiddenAll('filterStatus', isTrash);
-    toggleHiddenAll('filterPriority', isTrash);
-    toggleHiddenAll('filterContext', isTrash);
-    toggleHiddenAll('sortSelect', isTrash);
-    toggleHiddenAll('btnBulkMode', isTrash);
-    toggleHiddenAll('btnResetFilters', isTrash);
-    toggleHiddenAll('btnAIToggle', isTrash);
-    toggleHiddenAll('filtersDivider', isTrash);
-    
-    document.querySelectorAll('[id="mainFab"]').forEach(fab => {
-        if (isTrash) fab.classList.add('hidden'); 
-        else { 
-            fab.classList.remove('hidden'); 
-            if (typeof isBulkMode !== 'undefined' && isBulkMode) fab.classList.add('translate-y-24', 'opacity-0'); 
-            else fab.classList.remove('translate-y-24', 'opacity-0'); 
-        }
-    });
-    
-    if (state.view === 'calendar' && typeof isBulkMode !== 'undefined' && isBulkMode && typeof toggleBulkMode === 'function') toggleBulkMode();
-    
-    if (typeof calculateSidebarCounters === 'function' && typeof renderSidebarCounters === 'function') {
-        renderSidebarCounters(calculateSidebarCounters(tasks));
-    }
-    if (state.view === 'calendar' && typeof renderCalendar === 'function') renderCalendar(); 
-    else if (typeof renderTasks === 'function') renderTasks();
+    if (typeof renderTasks === 'function') renderTasks();
 }
 
 // VARIOUS OTHER UTILS
