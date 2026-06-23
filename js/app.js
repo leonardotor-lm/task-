@@ -522,16 +522,52 @@ function updateFilters() {
     if (typeof renderTasks === 'function') renderTasks();
 }
 
-window.updateFilters = function() {
-    window.currentFilters = {
-        search: document.getElementById('searchInput') ? document.getElementById('searchInput').value.trim() : '',
-        status: document.getElementById('filterStatus') ? document.getElementById('filterStatus').value : 'pending',
-        priority: document.getElementById('filterPriority') ? document.getElementById('filterPriority').value : 'all',
-        context: document.getElementById('filterContext') ? document.getElementById('filterContext').value : 'all'
-    };
-    if (typeof window.renderTasks === 'function') window.renderTasks();
+// --- DEBOUNCE PARA PROTECCIÓN DEL HILO PRINCIPAL ---
+window.searchTimeout = null;
+window.handleSearchInput = function() {
+    clearTimeout(window.searchTimeout);
+    window.searchTimeout = setTimeout(() => {
+        window.updateFilters();
+    }, 300); // 300ms de retraso estricto
 };
 
+// --- EL TRADUCTOR AST ---
+window.updateFilters = function() {
+    let queryParts = [];
+
+    // 1. Lectura del input de texto libre
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput && searchInput.value.trim() !== '') {
+        queryParts.push(searchInput.value.trim());
+    }
+
+    // 2. Traducción de los desplegables tradicionales a gramática AST
+    const statusVal = document.getElementById('filterStatus') ? document.getElementById('filterStatus').value : 'pending';
+    if (statusVal === 'completed') queryParts.push('status:completed');
+    if (statusVal === 'in_progress') queryParts.push('status:in_progress');
+
+    const priorityVal = document.getElementById('filterPriority') ? document.getElementById('filterPriority').value : 'all';
+    if (priorityVal !== 'all') queryParts.push(`priority:${priorityVal}`);
+
+    const contextVal = document.getElementById('filterContext') ? document.getElementById('filterContext').value : 'all';
+    if (contextVal !== 'all') {
+        // Envolvemos en comillas por si el contexto tiene espacios (ej. "Reunión de equipo")
+        queryParts.push(`context:"${contextVal}"`); 
+    }
+
+    // 3. Ensamblaje y Compilación
+    const rawQuery = queryParts.join(' AND ');
+    
+    // Inyectamos el resultado del AST en el estado global
+    if (window.SearchEngine && typeof window.SearchEngine.compile === 'function') {
+        window.currentFilters = window.SearchEngine.compile(rawQuery);
+    } else {
+        console.warn("Bypass: SearchEngine no está disponible.");
+        window.currentFilters = { hasActiveQuery: false };
+    }
+
+    if (typeof window.renderTasks === 'function') window.renderTasks();
+};
 window.resetFilters = function() {
     if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
     
