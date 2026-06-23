@@ -571,13 +571,21 @@ window.updateFilters = function() {
 window.resetFilters = function() {
     if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
     
-    // Validación estricta: Si la vista es "Todas", el reseteo no debe ocultar las completadas
     const defaultStatus = (window.currentState && window.currentState.view === 'all') ? 'all' : 'pending';
     
     if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = defaultStatus;
     if (document.getElementById('filterPriority')) document.getElementById('filterPriority').value = 'all';
     if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
     
+    window.currentSort = { by: 'date', order: 'asc' };
+    if (document.getElementById('sortSelect')) {
+        document.getElementById('sortSelect').value = 'date-asc';
+    }
+    
+    // Al invocar updateFilters, el AST se recompila en blanco automáticamente
+    window.updateFilters();
+    if (typeof showNotice === 'function') showNotice("Filtros restablecidos");
+};
     // Asignación directa y forzada para evitar variables no definidas
     window.currentSort = { by: 'date', order: 'asc' };
     if (document.getElementById('sortSelect')) {
