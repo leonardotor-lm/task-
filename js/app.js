@@ -219,6 +219,108 @@ async function addTask() {
     if (typeof renderTasks === 'function') renderTasks(); 
     if (typeof saveData === 'function') await saveData(); 
 }
+// ============================================================================
+// CORE PIPELINE: NAVEGACIÓN, FILTRADO Y MOTOR AST (SSOT)
+// ============================================================================
+
+window.updateFilters = function() {
+    let queryParts = [];
+    const searchInput = document.getElementById('searchInput');
+    const rawText = searchInput ? searchInput.value.trim() : '';
+    
+    // 1. Extracción pura del DOM
+    if (rawText !== '') queryParts.push(rawText);
+
+    const statusVal = document.getElementById('filterStatus') ? document.getElementById('filterStatus').value : 'pending';
+    const priorityVal = document.getElementById('filterPriority') ? document.getElementById('filterPriority').value : 'all';
+    const contextVal = document.getElementById('filterContext') ? document.getElementById('filterContext').value : 'all';
+
+    // 2. Traducción a gramática AST
+    if (statusVal === 'completed') queryParts.push('status:completed');
+    if (statusVal === 'in_progress') queryParts.push('status:in_progress');
+    if (priorityVal !== 'all') queryParts.push(`priority:${priorityVal}`);
+    if (contextVal !== 'all') queryParts.push(`context:"${contextVal}"`); 
+
+    const rawQuery = queryParts.join(' AND ');
+
+    // 3. Estructuración estricta del Estado Global (Híbrido)
+    window.currentFilters = {
+        // Flat legacy (Transitorio hasta depurar pruneTree)
+        status: statusVal, 
+        priority: priorityVal, 
+        context: contextVal, 
+        hasActiveQuery: false,
+        ast: null,
+        // Arquitectura SSOT definitiva
+        structured: { status: statusVal, priority: priorityVal, context: contextVal },
+        query: { rawText: rawText, ast: null, hasActiveQuery: false }
+    };
+
+    // 4. Compilación y delegación de autoridad al AST
+    if (window.SearchEngine && typeof window.SearchEngine.compile === 'function') {
+        const compilationResult = window.SearchEngine.compile(rawQuery);
+        // Inyección en la nueva arquitectura
+        window.currentFilters.query.ast = compilationResult.ast;
+        window.currentFilters.query.hasActiveQuery = compilationResult.hasActiveQuery;
+        // Inyección en el fallback legacy
+        window.currentFilters.hasActiveQuery = compilationResult.hasActiveQuery; 
+        window.currentFilters.ast = compilationResult.ast;
+    } else {
+        console.warn("AST Bypass: SearchEngine no está disponible o no compiló.");
+    }
+
+    // 5. Renderizado final. El AST ya dictaminó el estado.
+    if (typeof window.renderTasks === 'function') window.renderTasks();
+};
+
+window.resetFilters = function() {
+    // 1. Limpieza de Inputs
+    if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
+    
+    // 2. Cálculo de estado por defecto basado en la vista actual
+    const defaultStatus = (window.currentState && window.currentState.view === 'all') ? 'all' : 'pending';
+    
+    if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = defaultStatus;
+    if (document.getElementById('filterPriority')) document.getElementById('filterPriority').value = 'all';
+    if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
+    
+    // 3. Reseteo de ordenamiento (Sort)
+    if (document.getElementById('sortSelect')) {
+        document.getElementById('sortSelect').value = 'date-asc';
+        window.currentSort = { by: 'date', order: 'asc' };
+    }
+    
+    // 4. Delegación al orquestador (Forzamos recompilación AST en blanco)
+    window.updateFilters();
+    if (typeof showNotice === 'function') showNotice("Filtros restablecidos");
+};
+
+window.navigate = function(view, areaName = null, pushHistory = true, focusId = null) {
+    if (!window.currentState) return;
+    
+    // 1. Historial de Telemetría
+    if (pushHistory && typeof navHistory !== 'undefined') {
+        navHistory.push(JSON.parse(JSON.stringify(window.currentState)));
+    }
+    
+    // 2. Mutación del Estado Visual (SSOT Visual)
+    window.currentState.view = view; 
+    window.currentState.selectedArea = areaName; 
+    window.currentState.focusTargetId = focusId;
+    
+    if (window.innerWidth < 768 && typeof toggleSidebar === 'function') toggleSidebar(false);
+
+    // 3. Saneamiento del DOM para la nueva vista
+    const defaultStatus = (view === 'all') ? 'all' : 'pending';
+    if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
+    if (document.getElementById('filterPriority')) document.getElementById('filterPriority').value = 'all';
+    if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
+    if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = defaultStatus;
+    
+    // 4. Reconstrucción lógica e interfaz
+    window.updateFilters(); // Primero recompilamos el AST con los filtros limpios
+    if (typeof window.updateUI === 'function') window.updateUI(); // Luego pintamos el layout perimetral
+};
 window.addTask = addTask;
 async function saveEdit() {
     // 1. Validación inicial (aseguramos que el campo exista y tenga texto)
