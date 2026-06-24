@@ -6,6 +6,42 @@ window.API_KEY_STORAGE_KEY = 'leo_api_key_storage_key';
 window.currentState = window.currentState || { view: 'area', selectedArea: 'Inbox' };
 window.currentFilters = window.currentFilters || { search: '', status: 'pending', priority: 'all', context: 'all' };
 window.currentSort = window.currentSort || { by: 'date', order: 'asc' };
+
+// --- CARGA INICIAL DE CATEGORÍAS DESDE LOCALSTORAGE ---
+function loadCategoriesFromStorage() {
+    try {
+        const savedAreas = localStorage.getItem('leo_custom_areas');
+        const savedContexts = localStorage.getItem('leo_custom_contexts');
+        
+        if (savedAreas) {
+            window.customAreas = JSON.parse(savedAreas);
+        } else {
+            window.customAreas = ['Inbox', 'Personal', 'Trabajo', 'Casa'];
+            localStorage.setItem('leo_custom_areas', JSON.stringify(window.customAreas));
+        }
+        
+        if (savedContexts) {
+            window.customContexts = JSON.parse(savedContexts);
+        } else {
+            window.customContexts = [];
+            localStorage.setItem('leo_custom_contexts', JSON.stringify(window.customContexts));
+        }
+        
+        if (!window.customAreas.includes('Inbox')) {
+            window.customAreas.unshift('Inbox');
+            localStorage.setItem('leo_custom_areas', JSON.stringify(window.customAreas));
+        }
+        
+        console.log('✅ Categorías cargadas:', window.customAreas.length, 'áreas,', window.customContexts.length, 'contextos');
+        
+    } catch (error) {
+        console.error('❌ Error al cargar categorías desde localStorage:', error);
+        window.customAreas = ['Inbox', 'Personal', 'Trabajo', 'Casa'];
+        window.customContexts = [];
+    }
+}
+
+loadCategoriesFromStorage();
 // ------------------------------------------------------
 
 function readDiskSafely(key) {
@@ -49,7 +85,6 @@ async function quickAddSubtask(parentId, event) {
         
         nodes[i].subtasks.push(newTask);
         
-        // CORRECCIÓN: Uso consistente de window.expandedStates
         if (typeof window.expandedStates !== 'undefined') {
             window.expandedStates[parentId] = true;
         }
@@ -91,6 +126,9 @@ window.onload = async () => {
         }
 
         if (typeof migrateAndNormalizeTasks === 'function') migrateAndNormalizeTasks(); 
+        
+        if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
+        
         if (typeof updateUI === 'function') updateUI();
 
     } catch (criticalError) {
@@ -281,7 +319,6 @@ async function toggleTaskUniversal(id) {
             const todayStr = formatDateLocal(new Date());
             const nextDate = calculateNextOccurrence(t, todayStr);
             const historicalCopy = JSON.parse(JSON.stringify(t));
-            // CORRECCIÓN: ID entero para evitar decimales
             historicalCopy.id = Date.now() + Math.floor(Math.random() * 1000); 
             historicalCopy.status = 'completed'; 
             historicalCopy.completedAt = todayStr; 
@@ -315,12 +352,10 @@ async function deleteTaskUniversal(id) {
     if (!task) return; 
 
     const performDelete = async () => { 
-        // CORRECCIÓN: Marcar subtareas como eliminadas también
         const mutated = typeof findAndMutateTask === 'function' ? findAndMutateTask(id, (nodes, i) => { 
             nodes[i].isDeleted = true; 
             nodes[i].deletedAt = Date.now();
             
-            // Función recursiva para marcar subtareas
             function markSubtasksDeleted(subtasks) {
                 if (!subtasks) return;
                 subtasks.forEach(st => {
@@ -516,7 +551,7 @@ function getAllAreasOrdered() {
     return [...customAreas.filter(Boolean), ...orphaned]; 
 }
 
-// NAVEGACIÓN Y FOCO - VERSIÓN CANÓNICA (Mantiene consistencia de filtros)
+// NAVEGACIÓN Y FOCO - VERSIÓN CANÓNICA
 window.navigate = function(view, areaName = null, pushHistory = true, focusId = null) {
     if (!window.currentState) return;
     
@@ -530,14 +565,12 @@ window.navigate = function(view, areaName = null, pushHistory = true, focusId = 
     
     if (window.innerWidth < 768 && typeof toggleSidebar === 'function') toggleSidebar(false);
 
-    // Reset de filtros al navegar
     const defaultStatus = (view === 'all') ? 'all' : 'pending';
     if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
     if (document.getElementById('filterPriority')) document.getElementById('filterPriority').value = 'all';
     if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
     if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = defaultStatus;
     
-    // CORRECCIÓN: Llamar a updateFilters para mantener consistencia con el motor AST
     if (typeof window.updateFilters === 'function') window.updateFilters();
     if (typeof window.updateUI === 'function') window.updateUI();
 };
@@ -663,7 +696,6 @@ window.updateFilters = function() {
 
     const rawQuery = queryParts.join(' AND ');
     
-    // CORRECCIÓN: Esta es la versión que usa el motor AST
     if (window.SearchEngine && typeof window.SearchEngine.compile === 'function') {
         window.currentFilters = window.SearchEngine.compile(rawQuery);
     } else {
@@ -1280,11 +1312,9 @@ window.bulkDelete = function() {
     }
 };
 
-// CORRECCIÓN: bulkComplete ahora es secuencial para evitar múltiples renderizados
 window.bulkComplete = async function() { 
     if (selectedTaskIds.size === 0) return; 
     
-    // Procesar todas las tareas sin renderizar entre cada una
     for (const id of selectedTaskIds) {
         findAndMutateTask(id, (nodes, i) => {
             const t = nodes[i];
@@ -1335,7 +1365,6 @@ async function applyBulkMove() {
 window.applyBulkMove = applyBulkMove;
 
 // POSTPONE ACTIONS
-// CORRECCIÓN: Uso de formatDateLocal para evitar bugs de zona horaria
 async function postponeAction(type) { 
     let fd = ''; 
     
@@ -1479,7 +1508,7 @@ function processOmnibarCommand() { showNotice("Comando procesado localmente (Sim
 function handleOmnibarKeydown(event) { if (event.key === 'Enter') processOmnibarCommand(); }
 function breakdownTaskWithAI() { showNotice("Funcionalidad de IA en desarrollo."); }
 
-// CONTROLADOR DE CONFIRMACIÓN VISUAL (Sistema unificado)
+// CONTROLADOR DE CONFIRMACIÓN VISUAL
 window.resolveConfirmacion = null;
 
 window.pedirConfirmacionVisual = function(titulo, mensaje) {
@@ -1500,7 +1529,6 @@ window.pedirConfirmacionVisual = function(titulo, mensaje) {
 window.closeConfirmModal = function(resultado) {
     document.getElementById('confirmModal').classList.add('hidden');
     
-    // VÍA ORIGINAL: Callbacks (para showConfirm)
     if (resultado && typeof confirmCallback === 'function') {
         confirmCallback();
     }
@@ -1508,7 +1536,6 @@ window.closeConfirmModal = function(resultado) {
         confirmCallback = null;
     }
     
-    // VÍA NUEVA: Promesas (para pedirConfirmacionVisual)
     if (window.resolveConfirmacion) {
         window.resolveConfirmacion(resultado); 
         window.resolveConfirmacion = null;
@@ -1573,3 +1600,34 @@ window.prepareSubtaskSafe = function(id, event) {
         }, 50);
     }
 };
+
+// RENDERIZADO DE ÁREAS EN SIDEBAR
+function renderSidebarAreas() {
+    const sidebarContainer = document.getElementById('sidebarAreasList');
+    if (!sidebarContainer) {
+        console.warn('No se encontró el contenedor sidebarAreasList');
+        return;
+    }
+    
+    sidebarContainer.innerHTML = '';
+    
+    const allAreas = typeof getAllAreasOrdered === 'function' ? getAllAreasOrdered() : window.customAreas;
+    
+    allAreas.forEach(area => {
+        const areaItem = document.createElement('div');
+        areaItem.className = 'sidebar-area-item flex items-center justify-between p-2 hover:bg-navy-700 cursor-pointer rounded transition-colors';
+        areaItem.innerHTML = `
+            <span class="text-navy-50 text-sm">${area}</span>
+            <span class="text-navy-400 text-xs">›</span>
+        `;
+        
+        areaItem.onclick = () => {
+            if (typeof navigate === 'function') {
+                navigate('area', area);
+            }
+        };
+        
+        sidebarContainer.appendChild(areaItem);
+    });
+}
+window.renderSidebarAreas = renderSidebarAreas;
