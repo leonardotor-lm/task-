@@ -502,26 +502,54 @@ function importData(event) { const file = event.target.files[0]; if (!file) retu
     }
 window.refreshAllDropdowns = refreshAllDropdowns;
 // NAVIGATION & FILTERS CONTINUATION
-function updateFilters() {
-    if (!window.currentFilters) {
-        window.currentFilters = { search: '', status: 'pending', priority: 'all', context: 'all' };
-    }
-    
-    const searchEl = document.getElementById('searchInput');
-    const statusEl = document.getElementById('filterStatus');
-    const priorityEl = document.getElementById('filterPriority');
-    const contextEl = document.getElementById('filterContext');
+window.updateFilters = function() {
+    let queryParts = [];
 
-    currentFilters = {
-        search: searchEl ? searchEl.value.trim() : currentFilters.search,
-        status: statusEl ? statusEl.value : currentFilters.status,
-        priority: priorityEl ? priorityEl.value : currentFilters.priority,
-        context: contextEl ? contextEl.value : currentFilters.context
+    // 1. Lectura pasiva del input de texto (sin mutar comportamiento)
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput && searchInput.value.trim() !== '') {
+        queryParts.push(searchInput.value.trim());
+    }
+
+    // 2. Extracción de filtros estructurados de la interfaz (Tubería A)
+    const statusVal = document.getElementById('filterStatus') ? document.getElementById('filterStatus').value : 'pending';
+    const priorityVal = document.getElementById('filterPriority') ? document.getElementById('filterPriority').value : 'all';
+    const contextVal = document.getElementById('filterContext') ? document.getElementById('filterContext').value : 'all';
+
+    // 3. Traducción heredada para mantener la retrocompatibilidad del string (Transitorio)
+    if (statusVal === 'completed') queryParts.push('status:completed');
+    if (statusVal === 'in_progress') queryParts.push('status:in_progress');
+    if (priorityVal !== 'all') queryParts.push(`priority:${priorityVal}`);
+    if (contextVal !== 'all') queryParts.push(`context:"${contextVal}"`); 
+
+    const rawQuery = queryParts.join(' AND ');
+
+    // 4. NUEVA ESTRUCTURA DE ESTADO GLOBAL (Segregación Estricta)
+    window.currentFilters = {
+        structured: {
+            status: statusVal,
+            priority: priorityVal,
+            context: contextVal
+        },
+        query: {
+            rawText: searchInput ? searchInput.value.trim() : '',
+            ast: null,
+            hasActiveQuery: false
+        }
     };
 
-    if (typeof renderTasks === 'function') renderTasks();
-}
+    // 5. Inyección Silenciosa al Motor AST
+    if (window.SearchEngine && typeof window.SearchEngine.compile === 'function') {
+        const compilationResult = window.SearchEngine.compile(rawQuery);
+        window.currentFilters.query.ast = compilationResult.ast;
+        window.currentFilters.query.hasActiveQuery = compilationResult.hasActiveQuery;
+    } else {
+        console.warn("Fase 2 (Shadow): SearchEngine no disponible en contexto global.");
+    }
 
+    // 6. Ejecución del orquestador visual
+    if (typeof window.renderTasks === 'function') window.renderTasks();
+};
 // --- DEBOUNCE PARA PROTECCIÓN DEL HILO PRINCIPAL ---
 window.searchTimeout = null;
 window.handleSearchInput = function() {
