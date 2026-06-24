@@ -63,8 +63,7 @@ window.onload = async () => {
     try {
         
         // --- 2. ENLACE DE MEMORIA PRIMARIO ---
-        if (typeof syncGlobals === 'function') syncGlobals();
-
+        
         if (typeof initSpeechRecognition === 'function') initSpeechRecognition(); 
         if (typeof updateDateDisplay === 'function') updateDateDisplay(); 
         
@@ -1416,15 +1415,8 @@ function processOmnibarCommand() { showNotice("Comando procesado localmente (Sim
 function handleOmnibarKeydown(event) { if (event.key === 'Enter') processOmnibarCommand(); }
 function breakdownTaskWithAI() { showNotice("Funcionalidad de IA en desarrollo."); }
 
-// --- ORQUESTACIÓN Y ESTADO GLOBAL UNIFICADO ---
-// Puente de sincronización: ata las variables léxicas al objeto global por referencia
-function syncGlobals() {
-    if (typeof currentState !== 'undefined' && !window.currentState) window.currentState = currentState;
-    if (typeof currentFilters !== 'undefined' && !window.currentFilters) window.currentFilters = currentFilters;
-}
-
 window.updateFilters = function() {
-    syncGlobals();
+    ();
     if (window.currentFilters) {
         window.currentFilters.search = document.getElementById('searchInput') ? document.getElementById('searchInput').value.trim() : '';
         window.currentFilters.status = document.getElementById('filterStatus') ? document.getElementById('filterStatus').value : 'pending';
@@ -1432,56 +1424,7 @@ window.updateFilters = function() {
         window.currentFilters.context = document.getElementById('filterContext') ? document.getElementById('filterContext').value : 'all';
     }
     if (typeof window.renderTasks === 'function') window.renderTasks();
-};
-
-window.resetFilters = function() {
-    syncGlobals();
-    if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
-    
-    const defaultStatus = (window.currentState && window.currentState.view === 'all') ? 'all' : 'pending';
-    
-    if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = defaultStatus;
-    if (document.getElementById('filterPriority')) document.getElementById('filterPriority').value = 'all';
-    if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
-    
-    if (document.getElementById('sortSelect')) {
-        document.getElementById('sortSelect').value = 'date-asc';
-        if (typeof currentSort !== 'undefined') currentSort = { by: 'date', order: 'asc' };
-    }
-    
-    window.updateFilters();
-    if (typeof showNotice === 'function') showNotice("Filtros restablecidos");
-};
-
-window.navigate = function(view, areaName = null, pushHistory = true, focusId = null) {
-    syncGlobals();
-    if (!window.currentState) return;
-    
-    if (pushHistory && typeof navHistory !== 'undefined') {
-        navHistory.push(JSON.parse(JSON.stringify(window.currentState)));
-    }
-    
-    window.currentState.view = view;
-    window.currentState.selectedArea = areaName;
-    window.currentState.focusTargetId = focusId;
-    
-    if (window.innerWidth < 768 && typeof toggleSidebar === 'function') toggleSidebar(false);
-
-    if (window.currentFilters) {
-        window.currentFilters.search = '';
-        window.currentFilters.priority = 'all';
-        window.currentFilters.context = 'all';
-        window.currentFilters.status = (view === 'all') ? 'all' : 'pending';
-        
-        if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
-        if (document.getElementById('filterPriority')) document.getElementById('filterPriority').value = 'all';
-        if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
-        if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = window.currentFilters.status;
-    }
-    
-    // Invocamos updateUI (que está más arriba en app.js) para pintar la estructura
-    if (typeof updateUI === 'function') updateUI(); 
-};
+}; 
 // --- MOTOR DE PAPELERA: RESTAURACIÓN Y DESTRUCCIÓN ---
 
 window.restaurarTarea = async function(id) {
