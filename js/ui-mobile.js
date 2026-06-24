@@ -17,10 +17,58 @@ function obtenerTareasGlobales() {
 
 let ultimoLargoTareas = -1;
 
-window.updateUI = function() { 
-    if (!window.currentState) window.currentState = {};
-    if (!window.currentState.view) window.currentState.view = 'today'; 
-    window.renderTasks(); 
+window.updateUI = function() {
+    // 1. Consolidación de estado
+    const state = window.currentState || { view: 'today' };
+
+    // 2. Manejo del botón volver
+    const btnBack = document.getElementById('btnBack'); 
+    if (btnBack && typeof navHistory !== 'undefined' && navHistory.length > 0) btnBack.classList.remove('hidden'); 
+    else if (btnBack) btnBack.classList.add('hidden');
+
+    // 3. Sincronización del Título Principal
+    const titles = { 'today':'Hoy y atrasadas', 'tomorrow':'Mañana', 'week':'Esta semana', 'fortnight':'Próximos 15 días', 'all':'Todas las tareas', 'calendar':'Calendario', 'focus':'Dependencia específica', 'trash':'Papelera' };
+    const currentTitleText = state.view === 'area' ? `Área: ${state.selectedArea}` : titles[state.view];
+    
+    document.querySelectorAll('[id="view-title"], #viewTitle, .main-header h2').forEach(el => el.innerText = currentTitleText);
+
+    const isTrash = state.view === 'trash';
+    
+    // 4. Resaltado Dinámico del Menú Lateral
+    ['nav-today', 'nav-tomorrow', 'nav-week', 'nav-fortnight', 'nav-all', 'nav-calendar', 'nav-trash'].forEach(id => { 
+        document.querySelectorAll(`[id="${id}"]`).forEach(el => { 
+            const isActive = id === `nav-${state.view}`;
+            el.classList.toggle('bg-navy-900', isActive);
+            el.classList.toggle('text-brand-500', isActive);
+            el.classList.toggle('border-r-2', isActive);
+            el.classList.toggle('border-brand-500', isActive);
+            el.classList.toggle('text-navy-300', !isActive);
+        });
+    });
+    
+    // 5. Ocultamiento de la matriz de filtrado en vistas incompatibles
+    const toggleHidden = (id, cond) => document.querySelectorAll(`[id="${id}"]`).forEach(el => el.classList.toggle('hidden', cond));
+    toggleHidden('view-list', state.view === 'calendar');
+    toggleHidden('view-calendar', state.view !== 'calendar');
+    toggleHidden('filters-container', state.view === 'calendar');
+    
+    // 6. Configuración estructural de la Papelera
+    toggleHidden('btnEmptyTrash', !isTrash);
+    toggleHidden('searchWrap', isTrash);
+    toggleHidden('filterStatus', isTrash);
+    toggleHidden('filterPriority', isTrash);
+    toggleHidden('filterContext', isTrash);
+    toggleHidden('sortSelect', isTrash);
+    toggleHidden('btnBulkMode', isTrash);
+    toggleHidden('btnResetFilters', isTrash);
+    toggleHidden('btnAIToggle', isTrash);
+    toggleHidden('filtersDivider', isTrash);
+    
+    // 7. Sincronización complementaria (si existiese)
+    if (typeof window.syncViewUI === 'function') window.syncViewUI();
+
+    // 8. Delegación final al renderizador del DOM
+    if (typeof window.renderTasks === 'function') window.renderTasks();
 };
 
 window.renderTasks = function() {
