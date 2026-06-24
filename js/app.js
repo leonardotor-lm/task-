@@ -246,6 +246,7 @@ window.updateFilters = function() {
     // 3. Estructuración estricta del Estado Global (Híbrido)
     window.currentFilters = {
         // Flat legacy (Transitorio hasta depurar pruneTree)
+        search: rawText,
         status: statusVal, 
         priority: priorityVal, 
         context: contextVal, 
