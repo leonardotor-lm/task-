@@ -438,4 +438,213 @@ window.navigate = function(view, areaName = null, pushHistory = true, focusId = 
 window.updateSort = function() { 
     const select = document.getElementById('sortSelect');
     const val = select ? select.value.split('-') : ['date', 'asc']; 
-    window
+    window.currentSort = { by: val[0], order: val[1] }; 
+    if (typeof window.renderTasks === 'function') window.renderTasks(); 
+};
+
+window.updateUI = function() {
+    syncGlobals();
+    const state = window.currentState || { view: 'today' };
+    const btnBack = document.getElementById('btnBack'); 
+    if (btnBack && typeof navHistory !== 'undefined' && navHistory.length > 0) btnBack.classList.remove('hidden'); else if (btnBack) btnBack.classList.add('hidden');
+
+    const titles = { 'today':'Hoy y atrasadas', 'tomorrow':'Mañana', 'week':'Esta semana', 'fortnight':'Próximos 15 días', 'all':'Todas las tareas', 'calendar':'Calendario', 'focus':'Dependencia específica', 'trash':'Papelera (10 días)' };
+    const currentTitleText = state.view === 'area' ? `Área: ${state.selectedArea}` : titles[state.view];
+    document.querySelectorAll('[id="view-title"], #viewTitle, .main-header h2').forEach(el => el.innerText = currentTitleText);
+
+    const isTrash = state.view === 'trash';
+    ['nav-today', 'nav-tomorrow', 'nav-week', 'nav-fortnight', 'nav-all', 'nav-calendar', 'nav-trash'].forEach(id => { 
+        document.querySelectorAll(`[id="${id}"]`).forEach(el => { 
+            const isActive = id === `nav-${state.view}`;
+            el.classList.toggle('bg-navy-900', isActive); el.classList.toggle('text-brand-500', isActive);
+            el.classList.toggle('border-r-2', isActive); el.classList.toggle('border-brand-500', isActive);
+            el.classList.toggle('text-navy-300', !isActive);
+        });
+    });
+    
+    const toggleHidden = (id, cond) => document.querySelectorAll(`[id="${id}"]`).forEach(el => el.classList.toggle('hidden', cond));
+    toggleHidden('view-list', state.view === 'calendar'); toggleHidden('view-calendar', state.view !== 'calendar'); toggleHidden('filters-container', state.view === 'calendar');
+    toggleHidden('btnEmptyTrash', !isTrash); toggleHidden('searchWrap', isTrash); toggleHidden('filterStatus', isTrash); toggleHidden('filterPriority', isTrash);
+    toggleHidden('filterContext', isTrash); toggleHidden('sortSelect', isTrash); toggleHidden('btnBulkMode', isTrash); toggleHidden('btnResetFilters', isTrash);
+    toggleHidden('btnAIToggle', isTrash); toggleHidden('filtersDivider', isTrash);
+    
+    if (typeof syncViewUI === 'function') syncViewUI();
+    if (typeof renderTasks === 'function') renderTasks();
+};
+
+window.syncViewUI = function() {
+    const sidebarButtons = document.querySelectorAll('[onclick*="changeView"], [onclick*="setView"], [onclick*="switchView"]');
+    sidebarButtons.forEach(btn => {
+        btn.classList.remove('bg-navy-700', 'text-brand-500', 'font-semibold');
+        if (btn.getAttribute('onclick').includes(currentState.view)) btn.classList.add('bg-navy-700', 'text-brand-500', 'font-semibold');
+    });
+};
+
+// VARIOUS OTHER UTILS
+window.toggleExpand = function(id, event) { 
+    if (event) event.stopPropagation(); 
+    const filters = window.currentFilters || {};
+    const isFiltering = filters.hasActiveQuery || filters.search !== '' || filters.priority !== 'all' || filters.context !== 'all' || filters.status === 'in_progress' || filters.status === 'completed';
+    if (isFiltering) return;
+
+    window.expandedStates = window.expandedStates || {};
+    window.expandedStates[id] = !window.expandedStates[id]; 
+    localStorage.setItem('leo_expanded_states', JSON.stringify(window.expandedStates)); 
+    if (typeof renderTasks === 'function') renderTasks();
+};
+
+window.emptyTrash = async function() {
+    let hasDeletedTasks = false;
+    function checkDeleted(nodes) { for (let node of nodes) { if (node.isDeleted) return true; if (node.subtasks && checkDeleted(node.subtasks)) return true; } return false; }
+    if (typeof tasks !== 'undefined') hasDeletedTasks = checkDeleted(tasks);
+    if (!hasDeletedTasks) { if (typeof showNotice === 'function') showNotice("La papelera ya está vacía"); return; }
+
+    if (typeof showConfirm === 'function') {
+        showConfirm("Vaciar Papelera", "¿Estás seguro de eliminar definitivamente todas las tareas de la papelera? Esta acción es irreversible y purgará la base de datos.", async () => {
+            function clearDeletedNodes(nodes) {
+                for (let i = nodes.length - 1; i >= 0; i--) {
+                    if (nodes[i].isDeleted) nodes.splice(i, 1);
+                    else if (nodes[i].subtasks) clearDeletedNodes(nodes[i].subtasks);
+                }
+            }
+            if (typeof tasks !== 'undefined') {
+                clearDeletedNodes(tasks);
+                if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
+                if (typeof renderTasks === 'function') renderTasks();
+                if (typeof showNotice === 'function') showNotice("Papelera vaciada por completo");
+                if (typeof saveData === 'function') await saveData();
+            }
+        }, true);
+    }
+};
+
+window.restaurarTarea = async function(id) {
+    if (!id) return;
+    findAndMutateTask(id, (nodes, i) => { nodes[i].isDeleted = false; delete nodes[i].deletedAt; });
+    if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
+    if (typeof renderTasks === 'function') renderTasks();
+    if (typeof saveData === 'function') await saveData();
+    if (typeof showNotice === 'function') showNotice("Tarea restaurada a pendientes.");
+};
+
+window.destruirTarea = async function(id) {
+    if (!id) return;
+    if (typeof showConfirm === 'function') {
+        showConfirm("Atención: Borrado Definitivo", "Esta acción eliminará la tarea de forma permanente. ¿Continuar?", async () => {
+            findAndMutateTask(id, (nodes, i) => { nodes.splice(i, 1); });
+            if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
+            if (typeof renderTasks === 'function') renderTasks();
+            if (typeof saveData === 'function') await saveData();
+            if (typeof showNotice === 'function') showNotice("Registro destruido.");
+        }, true);
+    }
+};
+// CATEGORY MANAGEMENT
+window.deleteCustomArea = async function(index) { if(confirm("¿Seguro que querés eliminar esta área?")) { customAreas.splice(index, 1); await saveData(); if(typeof renderManageItems==='function') renderManageItems(); refreshAllDropdowns(); } };
+window.addCustomArea = async function() { const val = document.getElementById('newAreaInput').value.trim(); if(val) { customAreas.push(val); await saveData(); if(typeof renderManageItems==='function') renderManageItems(); refreshAllDropdowns(); } };
+window.editCustomArea = async function(index) {
+    const oldName = customAreas[index]; const newName = prompt("Editar nombre del área:", oldName);
+    if (newName && newName.trim() !== "" && newName.trim() !== oldName) {
+        const finalName = newName.trim(); customAreas[index] = finalName;
+        function walk(nodes) { if(!nodes)return; for(let t of nodes){ if(t.area===oldName) t.area=finalName; if(t.subtasks) walk(t.subtasks); } } walk(window.tasks);
+        await saveData(); if(typeof renderManageItems==='function') renderManageItems(); refreshAllDropdowns();
+    }
+};
+
+window.deleteCustomContext = async function(index) { if(confirm("¿Seguro que querés eliminar este contexto?")) { customContexts.splice(index, 1); await saveData(); if(typeof renderManageItems==='function') renderManageItems(); refreshAllDropdowns(); } };
+window.addCustomContext = async function() {
+    const input = document.getElementById('newContextInput'); if (!input) return;
+    const val = input.value.trim();
+    if(val) {
+        const name = val.startsWith('@') ? val : '@' + val;
+        const safeColor = (typeof manageSelectedColor !== 'undefined' && manageSelectedColor) ? manageSelectedColor : 'gray';
+        customContexts.push({name: name, color: safeColor});
+        await saveData(); typeof manageSelectedColor !== 'undefined' && (manageSelectedColor = 'gray');
+        if(typeof renderManageItems==='function') renderManageItems(); refreshAllDropdowns();
+    }
+};
+
+window.dragStartArea = function(event, index) { window.draggedAreaIndex = index; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', index); };
+window.dragOverArea = function(event) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; };
+window.dropArea = async function(event, targetIndex) {
+    event.preventDefault(); if (typeof window.draggedAreaIndex === 'undefined' || window.draggedAreaIndex === null || window.draggedAreaIndex === targetIndex) return;
+    const areaToMove = customAreas.splice(window.draggedAreaIndex, 1)[0]; customAreas.splice(targetIndex, 0, areaToMove);
+    window.draggedAreaIndex = null; await saveData(); if(typeof renderManageItems==='function') renderManageItems(); refreshAllDropdowns();
+};
+
+window.handleFileUpload = async function(event, mode) {
+    const file = event.target.files[0]; if (!file) return;
+    if(typeof showNotice === 'function') showNotice(`Subiendo "${file.name}" a Drive...`);
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        const base64Content = e.target.result.split(',')[1];
+        try {
+            const payload = { action: 'uploadFile', fileName: file.name, mimeType: file.type, fileData: base64Content };
+            const response = await fetch(typeof getSecureDbUrl === 'function' ? getSecureDbUrl() : window.dbUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), redirect: 'follow' });
+            if (!response.ok) throw new Error('Rechazo del servidor: ' + response.status);
+            const serverResponse = await response.text();
+            if (serverResponse.trim().startsWith('<')) throw new Error('Servidor devolvió HTML.');
+            let finalUrl = serverResponse.trim();
+            try { const parsed = JSON.parse(finalUrl); finalUrl = parsed.url || parsed.link || parsed.fileUrl || parsed.fileId || finalUrl; } catch (e) {}
+            if (!finalUrl.startsWith('http')) throw new Error('URL inválida.');
+            
+            if(typeof currentAttachments !== 'undefined') currentAttachments.push({ name: file.name, type: file.type, data: finalUrl });
+            if(typeof showNotice === 'function') showNotice("Archivo vinculado.");
+            if (typeof renderAttachments === 'function') renderAttachments(mode);
+        } catch (err) { if(typeof showNotice==='function') showNotice("Fallo al subir: " + err.message.substring(0, 50)); }
+    };
+    reader.onerror = () => { if(typeof showNotice==='function') showNotice("Error local de lectura."); };
+    reader.readAsDataURL(file); event.target.value = '';
+};
+
+window.renderAttachments = function() {
+    ['attachmentsList', 'editAttachmentsList'].forEach(containerId => {
+        const container = document.getElementById(containerId); if (!container || typeof currentAttachments === 'undefined') return; 
+        container.innerHTML = '';
+        currentAttachments.forEach((file, index) => {
+            const div = document.createElement('div'); div.className = "flex justify-between items-center bg-navy-800 p-2 rounded text-xs text-navy-50 mb-1 border border-navy-700";
+            const fileUrl = file.data || file.url || file.link || file.fileUrl;
+            const isValidLink = typeof fileUrl === 'string' && (fileUrl.startsWith('http') || fileUrl.startsWith('data:'));
+            const fileLink = isValidLink ? `<a href="${fileUrl}" target="_blank" class="text-brand-400 hover:underline cursor-pointer truncate mr-2">${file.name}</a>` : `<span class="truncate mr-2 text-navy-400">${file.name}</span>`;
+            div.innerHTML = `${fileLink}<button type="button" onclick="currentAttachments.splice(${index}, 1); renderAttachments();" class="text-danger-500 font-bold hover:bg-navy-700 px-2 py-1 rounded">X</button>`;
+            container.appendChild(div);
+        });
+    });
+};
+
+window.toggleProgressSafe = async function(id, event) {
+    if (event) event.stopPropagation(); 
+    let newStatus = "";
+    const found = findAndMutateTask(id, (nodes, i) => {
+        nodes[i].status = nodes[i].status === 'in_progress' ? 'pending' : 'in_progress';
+        newStatus = nodes[i].status;
+    });
+    if (found) {
+        if (typeof renderTasks === 'function') renderTasks();
+        if (typeof showNotice === 'function') showNotice(newStatus === 'in_progress' ? "Tarea en progreso" : "Tarea pausada");
+        if (typeof saveData === 'function') await saveData();
+    }
+};
+
+window.prepareSubtaskSafe = function(id, event) {
+    if (event) event.stopPropagation();
+    if (typeof openAddTaskModal === 'function') {
+        openAddTaskModal();
+        setTimeout(() => { const p = document.getElementById('parentInput'); if (p) p.value = id; }, 50);
+    }
+};
+
+document.addEventListener('click', function(e) {
+    const taskItem = e.target.closest('.task-item');
+    if (taskItem && e.target.classList.contains('task-name')) {
+        const taskId = taskItem.dataset.id;
+        if (typeof window.openEditModal === 'function') window.openEditModal(Number(taskId));
+    }
+});
+
+// STUBS / SIMULATION IA
+function initSpeechRecognition() {} 
+function toggleVoiceCapture() { if(typeof showNotice==='function') showNotice("Voz no disponible."); } 
+function toggleAIFilter() { document.getElementById('omnibar-container')?.classList.toggle('hidden'); }
+function processOmnibarCommand() { if(typeof showNotice==='function') showNotice("Simulación local."); const inp=document.getElementById('omnibarInput'); if(inp)inp.value = ''; }
+function handleOmnibarKeydown(event) { if (event.key === 'Enter') processOmnibarCommand(); }
