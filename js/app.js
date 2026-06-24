@@ -500,6 +500,7 @@ function importData(event) { const file = event.target.files[0]; if (!file) retu
     if (typeof saveCategories === 'function') {
         saveCategories();
     }
+};
 window.refreshAllDropdowns = refreshAllDropdowns;
 // NAVIGATION & FILTERS CONTINUATION
 window.updateFilters = function() {
