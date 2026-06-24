@@ -491,7 +491,7 @@ function importData(event) { const file = event.target.files[0]; if (!file) retu
         if (document.getElementById('filterContext')) populateSelect('filterContext', allContexts, true, "Contexto (Todos)", "all"); 
     }
 
-    // 5. Renderizado de interfaz periférica
+// 5. Renderizado de interfaz periférica
     if (typeof renderSidebarAreas === 'function') {
         renderSidebarAreas();
     }
@@ -500,14 +500,16 @@ function importData(event) { const file = event.target.files[0]; if (!file) retu
     if (typeof saveCategories === 'function') {
         saveCategories();
     }
-};
+}; // <--- ESTA ES LA LLAVE CRÍTICA QUE SANA LA SINTAXIS
+
 window.refreshAllDropdowns = refreshAllDropdowns;
+
 // NAVIGATION & FILTERS CONTINUATION
 window.updateFilters = function() {
     let queryParts = [];
 
     // 1. Lectura pasiva del input de texto (sin mutar comportamiento)
-    const searchInput = document.getElementById('searchInput');
+    const searchInput = document.getElementById('searchInput');    
     if (searchInput && searchInput.value.trim() !== '') {
         queryParts.push(searchInput.value.trim());
     }
