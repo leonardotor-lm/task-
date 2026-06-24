@@ -524,8 +524,15 @@ window.updateFilters = function() {
 
     const rawQuery = queryParts.join(' AND ');
 
-    // 4. NUEVA ESTRUCTURA DE ESTADO GLOBAL (Segregación Estricta)
+    // 4. NUEVA ESTRUCTURA + ADAPTADOR DE RETROCOMPATIBILIDAD
     window.currentFilters = {
+        // --- PARCHE TEMPORAL: Variables planas para que el motor viejo no colapse ---
+        status: statusVal,
+        priority: priorityVal,
+        context: contextVal,
+        hasActiveQuery: false, // Prevención de cortocircuito en pruneTree
+        
+        // --- NUEVA ARQUITECTURA: Segregación Estricta ---
         structured: {
             status: statusVal,
             priority: priorityVal,
@@ -543,14 +550,15 @@ window.updateFilters = function() {
         const compilationResult = window.SearchEngine.compile(rawQuery);
         window.currentFilters.query.ast = compilationResult.ast;
         window.currentFilters.query.hasActiveQuery = compilationResult.hasActiveQuery;
+        
+        // Mantenemos la variable plana para engañar al sistema viejo
+        window.currentFilters.hasActiveQuery = compilationResult.hasActiveQuery; 
+        window.currentFilters.ast = compilationResult.ast;
     } else {
         console.warn("Fase 2 (Shadow): SearchEngine no disponible en contexto global.");
     }
-
-    // 6. Ejecución del orquestador visual
-    if (typeof window.renderTasks === 'function') window.renderTasks();
-};
-// --- DEBOUNCE PARA PROTECCIÓN DEL HILO PRINCIPAL ---
+    
+    // --- DEBOUNCE PARA PROTECCIÓN DEL HILO PRINCIPAL ---
 window.searchTimeout = null;
 window.handleSearchInput = function() {
     clearTimeout(window.searchTimeout);
