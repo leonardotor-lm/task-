@@ -7,6 +7,7 @@ window.currentState = window.currentState || { view: 'area', selectedArea: 'Inbo
 window.currentFilters = window.currentFilters || { search: '', status: 'pending', priority: 'all', context: 'all' };
 window.currentSort = window.currentSort || { by: 'date', order: 'asc' };
 // ------------------------------------------------------
+
 function readDiskSafely(key) {
     try {
         return localStorage.getItem(key) || '';
@@ -18,6 +19,7 @@ function readDiskSafely(key) {
 
 window.dbUrl = readDiskSafely(window.DB_URL_KEY);
 window.customApiKey = readDiskSafely(window.API_KEY_STORAGE_KEY);
+
 // INSERCIÓN RÁPIDA DE SUBTAREAS (BLINDAJE GLOBAL)
 async function quickAddSubtask(parentId, event) {
     if (event) event.stopPropagation(); 
@@ -34,8 +36,8 @@ async function quickAddSubtask(parentId, event) {
             area: nodes[i].area || 'Inbox', 
             context: '', 
             priority: 'baja', 
-            date: '', // Corrección: la fecha no se hereda
-            startDate: '', // Corrección: la fecha de inicio tampoco se hereda
+            date: '',
+            startDate: '',
             time: '', 
             notes: '', 
             reminder: false, 
@@ -47,8 +49,9 @@ async function quickAddSubtask(parentId, event) {
         
         nodes[i].subtasks.push(newTask);
         
-        if (typeof expandedStates !== 'undefined') {
-            expandedStates[parentId] = true;
+        // CORRECCIÓN: Uso consistente de window.expandedStates
+        if (typeof window.expandedStates !== 'undefined') {
+            window.expandedStates[parentId] = true;
         }
     });
     
@@ -56,15 +59,11 @@ async function quickAddSubtask(parentId, event) {
     showNotice("Subtarea rápida creada.");
     await saveData();
 }
-// Forzamos la exposición al objeto global para garantizar que el HTML la encuentre
 window.quickAddSubtask = quickAddSubtask;
+
 // INICIALIZACIÓN SECUENCIAL Y ASÍNCRONA
 window.onload = async () => { 
     try {
-        
-        // --- 2. ENLACE DE MEMORIA PRIMARIO ---
-        if (typeof syncGlobals === 'function') syncGlobals();
-
         if (typeof initSpeechRecognition === 'function') initSpeechRecognition(); 
         if (typeof updateDateDisplay === 'function') updateDateDisplay(); 
         
@@ -74,37 +73,31 @@ window.onload = async () => {
         if (dbInput) dbInput.value = window.dbUrl;
         if (apiInput) apiInput.value = window.customApiKey;
 
-        // --- 3. PURGA DE AUTOCOMPLETADO DE CHROME ---
         setTimeout(() => {
             const searchInput = document.getElementById('searchInput');
             if (searchInput) searchInput.value = '';
         }, 500);
 
-        // --- 4. NAVEGACIÓN GARANTIZADA ---
         if (typeof window.navigate === 'function') {
             window.navigate('today', null, false);
         }
 
         let loadedFromCloud = false;
         
-        // --- 5. CONEXIÓN A LA NUBE ---
         if (window.dbUrl && window.dbUrl.trim() !== "") { 
             loadedFromCloud = await loadDataFromCloud(); 
         } else { 
             if (typeof showSyncStatus === 'function') showSyncStatus('none'); 
         }
 
-        // --- 6. NORMALIZACIÓN ---
         if (typeof migrateAndNormalizeTasks === 'function') migrateAndNormalizeTasks(); 
-
-        // --- 7. REFRESCO VISUAL ---
         if (typeof updateUI === 'function') updateUI();
 
     } catch (criticalError) {
-        // CIERRE ESTRICTO DEL BLOQUE TRY
         console.error("!! Falla crítica durante la inicialización:", criticalError);
     }
 };
+
 function saveCategories() {
     localStorage.setItem('leo_custom_areas', JSON.stringify(customAreas));
     localStorage.setItem('leo_custom_contexts', JSON.stringify(customContexts));
@@ -128,10 +121,7 @@ function migrateAndNormalizeTasks() {
             if (!n.subtasks) { n.subtasks = []; changed = true; }
             if (n.notes === undefined) { n.notes = ''; changed = true; }
             if (n.attachments === undefined) { n.attachments = []; changed = true; }
-            
-            // --- INYECCIÓN QUIRÚRGICA DE TAGS ---
             if (n.tags === undefined) { n.tags = []; changed = true; }
-            // ------------------------------------
             
             if (!n.area || n.area === 'General') { n.area = parentArea || 'Inbox'; changed = true; }
             if (n.context === undefined) { n.context = ''; changed = true; }
@@ -164,7 +154,6 @@ async function addTask() {
     const data = window.getAddTaskFormData();
     if (!data.name) return; 
 
-    // Construcción limpia
     const newTask = { 
         id: Date.now(), 
         name: data.name, 
@@ -181,24 +170,19 @@ async function addTask() {
         subtasks: [], 
         tags: data.tags, 
         recurrenceRule: data.rule
-        // IMPORTANTE: Nos aseguramos de que no arrastre propiedades de ruta viejas
     };
     
-
-    // Inserción forzada
     if (data.parentId === 'root') {
-        window.tasks.unshift(newTask); // <-- Inyección 1
+        window.tasks.unshift(newTask);
     } else {
         let parentFound = false;
         
-        // Función de inyección limpia
         function findAndInject(nodes) {
             for (let node of nodes) {
                 if (node.id === data.parentId) {
                     if (!node.subtasks) node.subtasks = [];
                     node.subtasks.unshift(newTask);
                     
-                    // FORZAMOS LA APERTURA VISUAL
                     if (typeof window.expandedStates === 'object') {
                         window.expandedStates[node.id] = true;
                     }
@@ -210,19 +194,17 @@ async function addTask() {
             return false;
         }
         
-        findAndInject(window.tasks); // <-- Inyección 2
-        
-        // Si por algún motivo falló la inyección, metela en la raíz para no perderla
-        if (!parentFound) window.tasks.unshift(newTask); // <-- Inyección 3
+        findAndInject(window.tasks);
+        if (!parentFound) window.tasks.unshift(newTask);
     }
-    // LIMPIEZA FINAL
+    
     if (typeof closeAddTaskModal === 'function') closeAddTaskModal(); 
     if (typeof renderTasks === 'function') renderTasks(); 
     if (typeof saveData === 'function') await saveData(); 
 }
 window.addTask = addTask;
+
 async function saveEdit() {
-    // 1. Validación inicial (aseguramos que el campo exista y tenga texto)
     const nameInput = document.getElementById('editNameInput');
     if (!nameInput || !nameInput.value.trim()) {
         if (typeof showNotice === 'function') showNotice("El nombre es obligatorio");
@@ -231,7 +213,6 @@ async function saveEdit() {
 
     const id = editState.id; 
     
-    // 2. Recolección de datos directa y segura (evitamos el helper viejo)
     const updatedData = {
         name: nameInput.value.trim(),
         status: document.getElementById('editStatusInput')?.value || 'pending',
@@ -243,19 +224,16 @@ async function saveEdit() {
         notes: document.getElementById('editNotesInput')?.value || '',
         reminder: document.getElementById('editReminderToggle')?.checked || false,
         rule: (typeof getRecurrenceRuleData === 'function') ? getRecurrenceRuleData('edit') : null,
-        // Extracción y limpieza de los tags
         tags: document.getElementById('editTagsInput')?.value.split(',').map(t => t.trim()).filter(t => t !== "") || []
     };
 
     const newParentId = document.getElementById('editParentInput')?.value || 'root';
     let targetTask = null; 
     
-    // 3. Lógica de reubicación si cambió de dependencia
     if (newParentId !== editState.parentId) { 
         targetTask = extractTask(id); 
     }
     
-    // 4. Inserción o mutación
     if (targetTask) { 
         targetTask.name = updatedData.name;
         targetTask.status = updatedData.status;
@@ -288,7 +266,6 @@ async function saveEdit() {
         }); 
     }
     
-    // 5. Cierre y persistencia
     closeEditModal(); 
     refreshAllDropdowns(); 
     renderTasks(); 
@@ -296,6 +273,7 @@ async function saveEdit() {
     if (typeof saveData === 'function') await saveData(); 
 }
 window.saveEdit = saveEdit;
+
 async function toggleTaskUniversal(id) {
     findAndMutateTask(id, (nodes, i) => {
         const t = nodes[i];
@@ -303,50 +281,68 @@ async function toggleTaskUniversal(id) {
             const todayStr = formatDateLocal(new Date());
             const nextDate = calculateNextOccurrence(t, todayStr);
             const historicalCopy = JSON.parse(JSON.stringify(t));
-            historicalCopy.id = Date.now() + Math.random(); historicalCopy.status = 'completed'; historicalCopy.completedAt = todayStr; historicalCopy.recurrenceRule = null;
-            t.date = nextDate; t.status = 'pending'; 
-            function resetCompletion(task) { task.status = 'pending'; if (task.subtasks) task.subtasks.forEach(resetCompletion); }
+            // CORRECCIÓN: ID entero para evitar decimales
+            historicalCopy.id = Date.now() + Math.floor(Math.random() * 1000); 
+            historicalCopy.status = 'completed'; 
+            historicalCopy.completedAt = todayStr; 
+            historicalCopy.recurrenceRule = null;
+            t.date = nextDate; 
+            t.status = 'pending'; 
+            
+            function resetCompletion(task) { 
+                task.status = 'pending'; 
+                if (task.subtasks) task.subtasks.forEach(resetCompletion); 
+            }
             if(t.subtasks) t.subtasks.forEach(resetCompletion);
             nodes.splice(i, 0, historicalCopy);
-            } else { 
-                if (t.status === 'completed') {
-                    t.status = 'pending';
-                    delete t.completedAt; // Purgamos la fecha si se destilda por error
-                } else {
-                    t.status = 'completed';
-                    t.completedAt = Date.now(); // Sellado con precisión de milisegundos
-                }
+        } else { 
+            if (t.status === 'completed') {
+                t.status = 'pending';
+                delete t.completedAt;
+            } else {
+                t.status = 'completed';
+                t.completedAt = Date.now();
             }
-            });
-    renderTasks(); renderCalendar(); await saveData();
+        }
+    });
+    renderTasks(); 
+    renderCalendar(); 
+    await saveData();
 }
+
 async function deleteTaskUniversal(id) { 
     const task = typeof getTaskById === 'function' ? getTaskById(id) : null; 
     if (!task) return; 
 
     const performDelete = async () => { 
-        // 1. Mutación
+        // CORRECCIÓN: Marcar subtareas como eliminadas también
         const mutated = typeof findAndMutateTask === 'function' ? findAndMutateTask(id, (nodes, i) => { 
             nodes[i].isDeleted = true; 
-            nodes[i].deletedAt = Date.now(); 
+            nodes[i].deletedAt = Date.now();
+            
+            // Función recursiva para marcar subtareas
+            function markSubtasksDeleted(subtasks) {
+                if (!subtasks) return;
+                subtasks.forEach(st => {
+                    st.isDeleted = true;
+                    st.deletedAt = Date.now();
+                    if (st.subtasks) markSubtasksDeleted(st.subtasks);
+                });
+            }
+            markSubtasksDeleted(nodes[i].subtasks);
         }) : false;
 
         if (mutated) { 
-            // 2. Ejecución defensiva de la interfaz (evita que un error visual bloquee la red)
             if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns(); 
             if (typeof renderTasks === 'function') renderTasks(); 
             if (typeof renderCalendar === 'function') renderCalendar(); 
             if (typeof showNotice === 'function') showNotice("Enviada a papelera"); 
             
-            // 3. Sincronización estricta SSOT antes de despachar
             if (typeof tasks !== 'undefined') window.tasks = tasks;
-            
-            // 4. Guardado garantizado
             if (typeof saveData === 'function') await saveData(); 
         } 
     }; 
 
-    // Flujo de confirmación
     if (task.subtasks && task.subtasks.length > 0) { 
         if (typeof showConfirm === 'function') {
             showConfirm("Eliminar con subtareas", `¿Enviar a papelera con sus ${task.subtasks.length} subtareas?`, performDelete, true); 
@@ -358,7 +354,7 @@ async function deleteTaskUniversal(id) {
     } 
 }
 window.deleteTaskUniversal = deleteTaskUniversal;
-// UTILIDADES Y RENDERIZADO VISUAL
+
 async function saveSettings() {
     console.log("Iniciando saveSettings...");
     try {
@@ -373,11 +369,10 @@ async function saveSettings() {
         const newUrl = dbInput.value.trim();
         const newApiKey = apiInput ? apiInput.value.trim() : '';
 
-        // Guardado persistente usando las llaves globales window.DB_URL_KEY
         if (newUrl) localStorage.setItem(window.DB_URL_KEY, newUrl);
         else localStorage.removeItem(window.DB_URL_KEY);
 
-       if (newApiKey) localStorage.setItem(window.API_KEY_STORAGE_KEY, newApiKey);
+        if (newApiKey) localStorage.setItem(window.API_KEY_STORAGE_KEY, newApiKey);
         else localStorage.removeItem(window.API_KEY_STORAGE_KEY);
 
         window.dbUrl = newUrl;
@@ -396,70 +391,216 @@ async function saveSettings() {
     }
 }
 window.saveSettings = saveSettings;
-// CORE ENGINE HELPERS
-function findAndMutateTask(taskId, mutationFn) { function traverse(nodes) { for (let i = 0; i < nodes.length; i++) { if (nodes[i].id === taskId) { mutationFn(nodes, i); return true; } if (nodes[i].subtasks && traverse(nodes[i].subtasks)) return true; } return false; } return traverse(window.tasks || []); }
-function extractTask(taskId) { let extracted = null; function walk(nodes) { for (let i = 0; i < nodes.length; i++) { if (nodes[i].id === taskId) { extracted = nodes.splice(i, 1)[0]; return true; } if (nodes[i].subtasks && walk(nodes[i].subtasks)) return true; } return false; } walk(tasks); return extracted; }
-function insertTask(taskObj, parentId) { if (parentId === 'root') tasks.unshift(taskObj); else findAndMutateTask(parentId, (nodes, i) => { if (!nodes[i].subtasks) nodes[i].subtasks = []; nodes[i].subtasks.push(taskObj); expandedStates[parentId] = true; }); }
-function getParentId(taskId) { let pId = 'root'; function search(nodes, currentParent) { for (let n of nodes) { if (n.id === taskId) { pId = currentParent; return true; } if (n.subtasks && search(n.subtasks, n.id)) return true; } return false; } search(tasks, 'root'); return pId; }
-function isDescendant(ancestorId, targetId) { if (ancestorId === targetId) return true; let ancestorNode = null; function findAnc(nodes) { for(let n of nodes) { if (n.id === ancestorId) { ancestorNode = n; return; } if (n.subtasks) findAnc(n.subtasks); } } findAnc(tasks); if (!ancestorNode || !ancestorNode.subtasks) return false; let found = false; function checkTarget(nodes) { for(let n of nodes) { if (n.id === targetId) { found = true; return; } if (n.subtasks) checkTarget(n.subtasks); } } checkTarget(ancestorNode.subtasks); return found; }
-function getTaskById(id) { let found = null; function walk(nodes) { for (let n of nodes) { if (n.id === id) { found = n; return; } if (n.subtasks && n.subtasks.length > 0) walk(n.subtasks); } } walk(tasks); return found; }
-function getUniqueValues(nodes, key) { let vals = new Set(); function walk(ns) { if(!Array.isArray(ns)) return; ns.forEach(n => { if (n.isDeleted) return; if (n[key]) vals.add(n[key]); if(n.subtasks) walk(n.subtasks); }); } walk(nodes); return Array.from(vals); }
-function getAllAreasOrdered() { const uniqueTasksAreas = getUniqueValues(tasks, 'area').filter(Boolean); const orphaned = uniqueTasksAreas.filter(a => !customAreas.includes(a)).sort((a, b) => String(a).localeCompare(String(b))); return [...customAreas.filter(Boolean), ...orphaned]; }
 
-// NAVEGACIÓN Y FOCO (Sonda de Telemetría)
-function navigate(view, areaName = null, pushHistory = true, focusId = null) { 
-    console.log(">> 1. Botón presionado. Navegando a:", view);
-    
-    if (typeof window.navHistory === 'undefined') window.navHistory = [];
-    if (pushHistory) window.navHistory.push(JSON.parse(JSON.stringify(currentState))); 
-    
-    currentState.view = view; 
-    currentState.selectedArea = areaName; 
-    currentState.focusTargetId = focusId; 
-    console.log(">> 2. Estado de memoria actualizado a:", currentState.view);
-    
-    if (window.innerWidth < 768 && typeof toggleSidebar === 'function') toggleSidebar(false); 
-    
-    if (typeof updateUI === 'function') {
-        console.log(">> 3. Invocando orquestador visual (updateUI)...");
-        updateUI(); 
+// CORE ENGINE HELPERS
+function findAndMutateTask(taskId, mutationFn) { 
+    function traverse(nodes) { 
+        for (let i = 0; i < nodes.length; i++) { 
+            if (nodes[i].id === taskId) { 
+                mutationFn(nodes, i); 
+                return true; 
+            } 
+            if (nodes[i].subtasks && traverse(nodes[i].subtasks)) return true; 
+        } 
+        return false; 
+    } 
+    return traverse(window.tasks || []); 
+}
+
+function extractTask(taskId) { 
+    let extracted = null; 
+    function walk(nodes) { 
+        for (let i = 0; i < nodes.length; i++) { 
+            if (nodes[i].id === taskId) { 
+                extracted = nodes.splice(i, 1)[0]; 
+                return true; 
+            } 
+            if (nodes[i].subtasks && walk(nodes[i].subtasks)) return true; 
+        } 
+        return false; 
+    } 
+    walk(tasks); 
+    return extracted; 
+}
+
+function insertTask(taskObj, parentId) { 
+    if (parentId === 'root') {
+        tasks.unshift(taskObj); 
     } else {
-        console.log(">> ERROR SILENCIOSO: El motor no encuentra la función updateUI()");
+        findAndMutateTask(parentId, (nodes, i) => { 
+            if (!nodes[i].subtasks) nodes[i].subtasks = []; 
+            nodes[i].subtasks.push(taskObj); 
+            if (typeof window.expandedStates !== 'undefined') {
+                window.expandedStates[parentId] = true;
+            }
+        }); 
     }
 }
+
+function getParentId(taskId) { 
+    let pId = 'root'; 
+    function search(nodes, currentParent) { 
+        for (let n of nodes) { 
+            if (n.id === taskId) { 
+                pId = currentParent; 
+                return true; 
+            } 
+            if (n.subtasks && search(n.subtasks, n.id)) return true; 
+        } 
+        return false; 
+    } 
+    search(tasks, 'root'); 
+    return pId; 
+}
+
+function isDescendant(ancestorId, targetId) { 
+    if (ancestorId === targetId) return true; 
+    let ancestorNode = null; 
+    function findAnc(nodes) { 
+        for(let n of nodes) { 
+            if (n.id === ancestorId) { 
+                ancestorNode = n; 
+                return; 
+            } 
+            if (n.subtasks) findAnc(n.subtasks); 
+        } 
+    } 
+    findAnc(tasks); 
+    if (!ancestorNode || !ancestorNode.subtasks) return false; 
+    let found = false; 
+    function checkTarget(nodes) { 
+        for(let n of nodes) { 
+            if (n.id === targetId) { 
+                found = true; 
+                return; 
+            } 
+            if (n.subtasks) checkTarget(n.subtasks); 
+        } 
+    } 
+    checkTarget(ancestorNode.subtasks); 
+    return found; 
+}
+
+function getTaskById(id) { 
+    let found = null; 
+    function walk(nodes) { 
+        for (let n of nodes) { 
+            if (n.id === id) { 
+                found = n; 
+                return; 
+            } 
+            if (n.subtasks && n.subtasks.length > 0) walk(n.subtasks); 
+        } 
+    } 
+    walk(tasks); 
+    return found; 
+}
+
+function getUniqueValues(nodes, key) { 
+    let vals = new Set(); 
+    function walk(ns) { 
+        if(!Array.isArray(ns)) return; 
+        ns.forEach(n => { 
+            if (n.isDeleted) return; 
+            if (n[key]) vals.add(n[key]); 
+            if(n.subtasks) walk(n.subtasks); 
+        }); 
+    } 
+    walk(nodes); 
+    return Array.from(vals); 
+}
+
+function getAllAreasOrdered() { 
+    const uniqueTasksAreas = getUniqueValues(tasks, 'area').filter(Boolean); 
+    const orphaned = uniqueTasksAreas.filter(a => !customAreas.includes(a)).sort((a, b) => String(a).localeCompare(String(b))); 
+    return [...customAreas.filter(Boolean), ...orphaned]; 
+}
+
+// NAVEGACIÓN Y FOCO - VERSIÓN CANÓNICA (Mantiene consistencia de filtros)
+window.navigate = function(view, areaName = null, pushHistory = true, focusId = null) {
+    if (!window.currentState) return;
+    
+    if (pushHistory && typeof navHistory !== 'undefined') {
+        navHistory.push(JSON.parse(JSON.stringify(window.currentState)));
+    }
+    
+    window.currentState.view = view;
+    window.currentState.selectedArea = areaName;
+    window.currentState.focusTargetId = focusId;
+    
+    if (window.innerWidth < 768 && typeof toggleSidebar === 'function') toggleSidebar(false);
+
+    // Reset de filtros al navegar
+    const defaultStatus = (view === 'all') ? 'all' : 'pending';
+    if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
+    if (document.getElementById('filterPriority')) document.getElementById('filterPriority').value = 'all';
+    if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
+    if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = defaultStatus;
+    
+    // CORRECCIÓN: Llamar a updateFilters para mantener consistencia con el motor AST
+    if (typeof window.updateFilters === 'function') window.updateFilters();
+    if (typeof window.updateUI === 'function') window.updateUI();
+};
 
 function focusTaskTree(id) { 
     navigate('focus', null, true, id); 
 }
+
 function goBack() { 
-    if (navHistory.length > 0) { 
-        currentState = navHistory.pop(); 
+    if (typeof navHistory !== 'undefined' && navHistory.length > 0) { 
+        window.currentState = navHistory.pop(); 
         updateUI(); 
     } 
 }
 
-function exportData() { const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(tasks)); const dlAnchorElem = document.createElement('a'); dlAnchorElem.setAttribute("href", dataStr); dlAnchorElem.setAttribute("download", "agenda_backup.json"); dlAnchorElem.click(); }
-function importData(event) { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (e) => { try { const importedTasks = JSON.parse(e.target.result); if (Array.isArray(importedTasks)) { tasks = importedTasks; migrateAndNormalizeTasks(); await saveData(); renderTasks(); renderCalendar(); showNotice("Datos importados correctamente"); } } catch (err) { showNotice("Error al leer el archivo"); } }; reader.readAsText(file); }
+function exportData() { 
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(tasks)); 
+    const dlAnchorElem = document.createElement('a'); 
+    dlAnchorElem.setAttribute("href", dataStr); 
+    dlAnchorElem.setAttribute("download", "agenda_backup.json"); 
+    dlAnchorElem.click(); 
+}
+
+function importData(event) { 
+    const file = event.target.files[0]; 
+    if (!file) return; 
+    const reader = new FileReader(); 
+    reader.onload = async (e) => { 
+        try { 
+            const importedTasks = JSON.parse(e.target.result); 
+            if (Array.isArray(importedTasks)) { 
+                tasks = importedTasks; 
+                migrateAndNormalizeTasks(); 
+                await saveData(); 
+                renderTasks(); 
+                renderCalendar(); 
+                showNotice("Datos importados correctamente"); 
+            } 
+        } catch (err) { 
+            showNotice("Error al leer el archivo"); 
+        } 
+    }; 
+    reader.readAsText(file); 
+}
 
 // RENDERING
-    // 1. Rastreo profundo (Algoritmo Recursivo): extrae datos de tareas y de todas sus subtareas
-    function extractDeepValues(nodes, key) {
-        let results = [];
-        nodes.forEach(t => {
-            if (t[key] && typeof t[key] === 'string' && t[key].trim() !== '') {
-                results.push(t[key].trim());
-            }
-            if (t.subtasks && Array.isArray(t.subtasks) && t.subtasks.length > 0) {
-                results = results.concat(extractDeepValues(t.subtasks, key)); 
-            }
-        });
-        return results;
-    }
+function extractDeepValues(nodes, key) {
+    let results = [];
+    nodes.forEach(t => {
+        if (t[key] && typeof t[key] === 'string' && t[key].trim() !== '') {
+            results.push(t[key].trim());
+        }
+        if (t.subtasks && Array.isArray(t.subtasks) && t.subtasks.length > 0) {
+            results = results.concat(extractDeepValues(t.subtasks, key)); 
+        }
+    });
+    return results;
+}
 
+function refreshAllDropdowns() {
     const dynamicAreas = [...new Set(extractDeepValues(tasks, 'area'))];
     const dynamicContexts = [...new Set(extractDeepValues(tasks, 'context'))];
     
-    // 2. Restauración estructural: se reinyectan los valores nuevos como objetos legibles
     if (typeof customAreas !== 'undefined' && Array.isArray(customAreas)) {
         dynamicAreas.forEach(area => {
             if (!customAreas.includes(area)) customAreas.push(area);
@@ -475,14 +616,12 @@ function importData(event) { const file = event.target.files[0]; if (!file) retu
         });
     }
 
-    // 3. Fusión estricta y ordenamiento alfabético
     const staticAreas = typeof customAreas !== 'undefined' ? customAreas : [];
     const allAreas = [...new Set([...staticAreas, ...dynamicAreas])].sort();
     
     const staticContexts = (typeof customContexts !== 'undefined' ? customContexts : []).map(c => typeof c === 'object' ? c.name : c);
     const allContexts = [...new Set([...staticContexts, ...dynamicContexts])].sort();
     
-    // 4. Inyección segura en el DOM
     if (typeof populateSelect === 'function') {
         if (document.getElementById('areaInput')) populateSelect('areaInput', allAreas);
         if (document.getElementById('editAreaInput')) populateSelect('editAreaInput', allAreas);
@@ -491,57 +630,25 @@ function importData(event) { const file = event.target.files[0]; if (!file) retu
         if (document.getElementById('filterContext')) populateSelect('filterContext', allContexts, true, "Contexto (Todos)", "all"); 
     }
 
-    // 5. Renderizado de interfaz periférica
     if (typeof renderSidebarAreas === 'function') {
         renderSidebarAreas();
     }
     
-    // 6. Consolidación y persistencia de los datos ya saneados
     if (typeof saveCategories === 'function') {
         saveCategories();
     }
-window.refreshAllDropdowns = refreshAllDropdowns;
-// NAVIGATION & FILTERS CONTINUATION
-function updateFilters() {
-    if (!window.currentFilters) {
-        window.currentFilters = { search: '', status: 'pending', priority: 'all', context: 'all' };
-    }
-    
-    const searchEl = document.getElementById('searchInput');
-    const statusEl = document.getElementById('filterStatus');
-    const priorityEl = document.getElementById('filterPriority');
-    const contextEl = document.getElementById('filterContext');
-
-    currentFilters = {
-        search: searchEl ? searchEl.value.trim() : currentFilters.search,
-        status: statusEl ? statusEl.value : currentFilters.status,
-        priority: priorityEl ? priorityEl.value : currentFilters.priority,
-        context: contextEl ? contextEl.value : currentFilters.context
-    };
-
-    if (typeof renderTasks === 'function') renderTasks();
 }
+window.refreshAllDropdowns = refreshAllDropdowns;
 
-// --- DEBOUNCE PARA PROTECCIÓN DEL HILO PRINCIPAL ---
-window.searchTimeout = null;
-window.handleSearchInput = function() {
-    clearTimeout(window.searchTimeout);
-    window.searchTimeout = setTimeout(() => {
-        window.updateFilters();
-    }, 300); // 300ms de retraso estricto
-};
-
-// --- EL TRADUCTOR AST ---
+// --- MOTOR DE FILTRADO AST (VERSIÓN CANÓNICA) ---
 window.updateFilters = function() {
     let queryParts = [];
 
-    // 1. Lectura del input de texto libre
     const searchInput = document.getElementById('searchInput');
     if (searchInput && searchInput.value.trim() !== '') {
         queryParts.push(searchInput.value.trim());
     }
 
-    // 2. Traducción de los desplegables tradicionales a gramática AST
     const statusVal = document.getElementById('filterStatus') ? document.getElementById('filterStatus').value : 'pending';
     if (statusVal === 'completed') queryParts.push('status:completed');
     if (statusVal === 'in_progress') queryParts.push('status:in_progress');
@@ -551,14 +658,12 @@ window.updateFilters = function() {
 
     const contextVal = document.getElementById('filterContext') ? document.getElementById('filterContext').value : 'all';
     if (contextVal !== 'all') {
-        // Envolvemos en comillas por si el contexto tiene espacios (ej. "Reunión de equipo")
         queryParts.push(`context:"${contextVal}"`); 
     }
 
-    // 3. Ensamblaje y Compilación
     const rawQuery = queryParts.join(' AND ');
     
-    // Inyectamos el resultado del AST en el estado global
+    // CORRECCIÓN: Esta es la versión que usa el motor AST
     if (window.SearchEngine && typeof window.SearchEngine.compile === 'function') {
         window.currentFilters = window.SearchEngine.compile(rawQuery);
     } else {
@@ -568,6 +673,15 @@ window.updateFilters = function() {
 
     if (typeof window.renderTasks === 'function') window.renderTasks();
 };
+
+window.searchTimeout = null;
+window.handleSearchInput = function() {
+    clearTimeout(window.searchTimeout);
+    window.searchTimeout = setTimeout(() => {
+        window.updateFilters();
+    }, 300);
+};
+
 window.resetFilters = function() {
     if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
     
@@ -584,29 +698,6 @@ window.resetFilters = function() {
     
     window.updateFilters();
     if (typeof showNotice === 'function') showNotice("Filtros restablecidos");
-};
-
-window.navigate = function(view, areaName = null, pushHistory = true, focusId = null) {
-    if (!window.currentState) return;
-    
-    if (pushHistory && typeof navHistory !== 'undefined') {
-        navHistory.push(JSON.parse(JSON.stringify(window.currentState)));
-    }
-    
-    window.currentState.view = view;
-    window.currentState.selectedArea = areaName;
-    window.currentState.focusTargetId = focusId;
-    
-    if (window.innerWidth < 768 && typeof toggleSidebar === 'function') toggleSidebar(false);
-
-    const defaultStatus = (view === 'all') ? 'all' : 'pending';
-    if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
-    if (document.getElementById('filterPriority')) document.getElementById('filterPriority').value = 'all';
-    if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
-    if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = defaultStatus;
-    
-    window.updateFilters();
-    if (typeof window.updateUI === 'function') window.updateUI();
 };
 
 window.updateSort = function() { 
@@ -630,7 +721,6 @@ function updateUI() {
 
     const isTrash = state.view === 'trash';
     
-    // Resaltado Menú Lateral
     ['nav-today', 'nav-tomorrow', 'nav-week', 'nav-fortnight', 'nav-all', 'nav-calendar', 'nav-trash'].forEach(id => { 
         document.querySelectorAll(`[id="${id}"]`).forEach(el => { 
             const isActive = id === `nav-${state.view}`;
@@ -642,7 +732,6 @@ function updateUI() {
         });
     });
     
-    // Configuración visual de elementos
     const toggleHidden = (id, cond) => document.querySelectorAll(`[id="${id}"]`).forEach(el => el.classList.toggle('hidden', cond));
     toggleHidden('view-list', state.view === 'calendar');
     toggleHidden('view-calendar', state.view !== 'calendar');
@@ -661,16 +750,13 @@ function updateUI() {
     if (typeof renderTasks === 'function') renderTasks();
 }
 
-// VARIOUS OTHER UTILS
 window.toggleExpand = function(id, event) { 
     if (event) event.stopPropagation(); 
     
-    // Bloqueo de seguridad: Si hay filtros activos, impedimos colapsar manualmente
     const filters = window.currentFilters || {};
     const isFiltering = filters.hasActiveQuery || filters.search !== '' || filters.priority !== 'all' || filters.context !== 'all' || filters.status === 'in_progress' || filters.status === 'completed';
     if (isFiltering) return;
 
-    // Sincronización estricta con el objeto global de la ventana
     window.expandedStates = window.expandedStates || {};
     window.expandedStates[id] = !window.expandedStates[id]; 
     
@@ -678,51 +764,98 @@ window.toggleExpand = function(id, event) {
     
     if (typeof window.renderTasks === 'function') {
         window.renderTasks(); 
-    } else if (typeof renderTasks === 'function') {
-        renderTasks();
-    }
-};
-// 1. Restaurar tarea
-window.restoreTask = function(id) {
-    const task = tasks.find(t => t.id === id);
-    if (task) {
-        task.isDeleted = false;
-        delete task.deletedAt;
-        task.status = 'pending'; // Devuelve el estado a pendiente
-        
-        // NOTA: Reemplazá 'saveTasks()' por el nombre exacto de la función 
-        // que uses para guardar en localStorage si se llama distinto.
-        if (typeof saveTasks === 'function') saveTasks(); 
-        renderTasks();
     }
 };
 
-// 2. Borrado definitivo individual
-window.deleteTaskPermanently = function(id) {
-    if (confirm("¿Estás seguro de eliminar esta tarea definitivamente? Esta acción es irreversible.")) {
-        const index = tasks.findIndex(t => t.id === id);
-        if (index !== -1) {
-            tasks.splice(index, 1); // Extirpa la tarea del array global
-            if (typeof saveTasks === 'function') saveTasks();
-            renderTasks();
-        }
+// --- VERSIÓN CANÓNICA: RESTAURAR TAREA ---
+window.restoreTask = async function(id) {
+    if (typeof findAndMutateTask === 'function') {
+        findAndMutateTask(id, (nodes, i) => {
+            nodes[i].isDeleted = false;
+            delete nodes[i].deletedAt;
+            nodes[i].status = 'pending';
+        });
+        if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
+        if (typeof renderTasks === 'function') renderTasks();
+        if (typeof renderCalendar === 'function') renderCalendar();
+        if (typeof showNotice === 'function') showNotice("Tarea restaurada con éxito");
+        if (typeof saveData === 'function') await saveData();
     }
 };
 
-// 3. Vaciar toda la papelera
+// --- VERSIÓN CANÓNICA: BORRADO PERMANENTE ---
+window.hardDeleteTask = function(id) {
+    if (typeof showConfirm === 'function') {
+        showConfirm("Atención: Borrado Definitivo", "Esta acción eliminará la tarea de la base de datos de manera permanente y no se puede deshacer. ¿Continuar?", async () => {
+            function removeNode(nodes) {
+                for (let i = 0; i < nodes.length; i++) {
+                    if (nodes[i].id === id) {
+                        nodes.splice(i, 1);
+                        return true;
+                    }
+                    if (nodes[i].subtasks && removeNode(nodes[i].subtasks)) return true;
+                }
+                return false;
+            }
+            
+            if (typeof tasks !== 'undefined') {
+                removeNode(tasks);
+                if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
+                if (typeof renderTasks === 'function') renderTasks();
+                if (typeof renderCalendar === 'function') renderCalendar();
+                if (typeof showNotice === 'function') showNotice("Registro eliminado de la base de datos");
+                if (typeof saveData === 'function') await saveData();
+            }
+        }, true);
+    }
+};
+
+// --- VERSIÓN CANÓNICA: VACIAR PAPELERA ---
 window.emptyTrash = function() {
-    const trashCount = tasks.filter(t => t.isDeleted).length;
-    if (trashCount === 0) return; // Evita acciones si ya está vacía
+    let hasDeletedTasks = false;
+    function checkDeleted(nodes) {
+        for (let node of nodes) {
+            if (node.isDeleted) return true;
+            if (node.subtasks && checkDeleted(node.subtasks)) return true;
+        }
+        return false;
+    }
+    
+    if (typeof tasks !== 'undefined') {
+        hasDeletedTasks = checkDeleted(tasks);
+    }
 
-    if (confirm(`¿Estás seguro de eliminar definitivamente las ${trashCount} tareas de la papelera?`)) {
-        // Mantenemos solo las tareas que NO están en la papelera.
-        // Usamos splice para no perder la referencia de memoria del array original 'tasks'.
-        const remainingTasks = tasks.filter(t => !t.isDeleted);
-        tasks.length = 0; 
-        tasks.push(...remainingTasks);
-        
-        if (typeof saveTasks === 'function') saveTasks();
-        renderTasks();
+    if (!hasDeletedTasks) {
+        if (typeof showNotice === 'function') showNotice("La papelera ya está vacía");
+        return;
+    }
+
+    if (typeof showConfirm === 'function') {
+        showConfirm(
+            "Vaciar Papelera", 
+            "¿Estás seguro de eliminar definitivamente todas las tareas de la papelera? Esta acción es irreversible y purgará la base de datos.", 
+            async () => {
+                function clearDeletedNodes(nodes) {
+                    for (let i = nodes.length - 1; i >= 0; i--) {
+                        if (nodes[i].isDeleted) {
+                            nodes.splice(i, 1);
+                        } else if (nodes[i].subtasks) {
+                            clearDeletedNodes(nodes[i].subtasks);
+                        }
+                    }
+                }
+                
+                if (typeof tasks !== 'undefined') {
+                    clearDeletedNodes(tasks);
+                    if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
+                    if (typeof renderTasks === 'function') renderTasks();
+                    if (typeof renderCalendar === 'function') renderCalendar();
+                    if (typeof showNotice === 'function') showNotice("Papelera vaciada por completo");
+                    if (typeof saveData === 'function') await saveData();
+                }
+            }, 
+            true
+        );
     }
 };
 
@@ -761,16 +894,35 @@ function renderCalendar() {
         grid.appendChild(dayEl); 
     } 
 }
+
 function changeMonth(delta) { calendarDate.setMonth(calendarDate.getMonth() + delta); renderCalendar(); }
-function openDayDetail(dateStr) { const dayTasks = []; function collect(ns, pName) { if (!Array.isArray(ns)) return; ns.forEach(n => { if (n.isDeleted) return; if (n.status !== 'completed' && n.date === dateStr) dayTasks.push({ ...n, type: pName ? `Depende de: ${pName}` : 'Principal' }); if (n.subtasks) collect(n.subtasks, n.name); }); } collect(tasks, null); document.getElementById('modalDateTitle').innerText = new Date(dateStr + "T00:00:00").toLocaleDateString('es-AR', { day: 'numeric', month: 'long' }); const content = document.getElementById('modalContent'); if (dayTasks.length === 0) content.innerHTML = '<p class="text-navy-400 text-sm text-center italic py-10">Libre de tareas.</p>'; else content.innerHTML = dayTasks.map(t => `<div class="p-4 bg-navy-900 border border-navy-700 rounded-md flex items-center justify-between cursor-pointer hover:bg-navy-800 transition-colors" onclick="openEditModal(${t.id}); closeModal();"><div><p class="font-semibold text-sm ${t.status === 'in_progress' ? 'text-info-500' : 'text-navy-50'}">${t.name}</p><p class="text-[9px] text-navy-400 uppercase tracking-wider font-bold">${t.area}${t.context ? ` &bull; ${t.context}` : ''} &bull; <span class="text-brand-500">${t.type}</span></p></div><div class="flex flex-col items-end gap-1"><svg class="w-3.5 h-3.5 ${priorityColors[t.priority]}" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd"/></svg></div></div>`).join(''); document.getElementById('dayDetailModal').classList.remove('hidden'); }
+
+function openDayDetail(dateStr) { 
+    const dayTasks = []; 
+    function collect(ns, pName) { 
+        if (!Array.isArray(ns)) return; 
+        ns.forEach(n => { 
+            if (n.isDeleted) return; 
+            if (n.status !== 'completed' && n.date === dateStr) dayTasks.push({ ...n, type: pName ? `Depende de: ${pName}` : 'Principal' }); 
+            if (n.subtasks) collect(n.subtasks, n.name); 
+        }); 
+    } 
+    collect(tasks, null); 
+    document.getElementById('modalDateTitle').innerText = new Date(dateStr + "T00:00:00").toLocaleDateString('es-AR', { day: 'numeric', month: 'long' }); 
+    const content = document.getElementById('modalContent'); 
+    if (dayTasks.length === 0) {
+        content.innerHTML = '<p class="text-navy-400 text-sm text-center italic py-10">Libre de tareas.</p>'; 
+    } else {
+        content.innerHTML = dayTasks.map(t => `<div class="p-4 bg-navy-900 border border-navy-700 rounded-md flex items-center justify-between cursor-pointer hover:bg-navy-800 transition-colors" onclick="openEditModal(${t.id}); closeModal();"><div><p class="font-semibold text-sm ${t.status === 'in_progress' ? 'text-info-500' : 'text-navy-50'}">${t.name}</p><p class="text-[9px] text-navy-400 uppercase tracking-wider font-bold">${t.area}${t.context ? ` &bull; ${t.context}` : ''} &bull; <span class="text-brand-500">${t.type}</span></p></div><div class="flex flex-col items-end gap-1"><svg class="w-3.5 h-3.5 ${priorityColors[t.priority]}" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd"/></svg></div></div>`).join(''); 
+    }
+    document.getElementById('dayDetailModal').classList.remove('hidden'); 
+}
+
 function closeModal() { document.getElementById('dayDetailModal').classList.add('hidden'); }
 
 function openManageModal() { document.getElementById('manageModalTitle').innerText = 'Gestionar Categorías'; renderManageItems(); document.getElementById('manageModal').classList.remove('hidden'); }
 function closeManageModal() { document.getElementById('manageModal').classList.add('hidden'); }
 
-// FUNCIONES DE GESTIÓN DE ÁREAS Y CONTEXTOS
-
-// Función para mantener la integridad de los datos al editar categorías
 function cascadeUpdateCategory(type, oldVal, newVal) {
     function walk(nodes) {
         if (!nodes) return;
@@ -828,22 +980,18 @@ window.editCustomContext = function(index) {
     const oldCtx = customContexts[index];
     let tempColor = oldCtx.color || 'gray';
     
-    // Diccionario de colores seguro para la interfaz
     const colorHexMap = { 'blue': '#3b82f6', 'purple': '#a855f7', 'green': '#22c55e', 'red': '#ef4444', 'orange': '#f97316', 'gray': '#6b7280', 'pink': '#ec4899', 'teal': '#14b8a6', 'yellow': '#eab308', 'cyan': '#06b6d4', 'indigo': '#6366f1', 'rose': '#f43f5e', 'emerald': '#10b981', 'fuchsia': '#d946ef' };
     
-    // 1. Purga de modales huérfanos previos (prevención de superposición)
     const modalId = 'dynamic-edit-context-modal';
     let existingModal = document.getElementById(modalId);
     if (existingModal) existingModal.remove();
     
-    // 2. Construcción del contenedor principal
     const modal = document.createElement('div');
     modal.id = modalId;
     modal.className = 'fixed inset-0 flex items-center justify-center';
-    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.6)'; // Fondo oscuro translúcido
-    modal.style.zIndex = '9999'; // Garantiza prioridad visual absoluta
+    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+    modal.style.zIndex = '9999';
     
-    // 3. Renderizado dinámico de la paleta de colores
     const renderColors = () => {
         return Object.keys(colorHexMap).map(c => `
             <button type="button" 
@@ -858,7 +1006,6 @@ window.editCustomContext = function(index) {
         `).join('');
     };
 
-    // 4. Inyección del código HTML interno
     modal.innerHTML = `
         <div class="bg-navy-800 border border-navy-700 rounded p-5 w-[90%] max-w-sm shadow-2xl">
             <h3 class="text-navy-50 font-bold mb-4 text-lg">Editar Contexto</h3>
@@ -885,41 +1032,34 @@ window.editCustomContext = function(index) {
     modal.dataset.selectedColor = tempColor;
     document.body.appendChild(modal);
     
-    // 5. Gestión del foco para optimizar el tipeo inmediato
     const nameInput = document.getElementById('editContextNameInput');
     nameInput.focus();
     nameInput.setSelectionRange(nameInput.value.length, nameInput.value.length);
     
-    // 6. Lógica de cancelación
     document.getElementById('cancelEditCtxBtn').onclick = () => modal.remove();
     
-    // 7. Lógica de guardado asincrónico y actualización en cascada
     document.getElementById('saveEditCtxBtn').onclick = async () => {
         const newNameRaw = nameInput.value.trim();
-        if (!newNameRaw) return; // Validación silenciosa si está vacío
+        if (!newNameRaw) return;
         
         let finalName = newNameRaw;
         if (!finalName.startsWith('@')) finalName = '@' + finalName;
         
         const selectedColor = modal.dataset.selectedColor || 'gray';
         
-        // Actualiza las tareas previas si se modificó el nombre
         if (finalName !== oldCtx.name) {
             if (typeof cascadeUpdateCategory === 'function') {
                 cascadeUpdateCategory('context', oldCtx.name, finalName);
             }
         }
         
-        // Mutación de la base de datos local
         customContexts[index].name = finalName;
         customContexts[index].color = selectedColor;
         
-        // Persistencia y actualización de vistas
         if (typeof saveData === 'function') await saveData();
         if (typeof renderManageItems === 'function') renderManageItems();
         if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
         
-        // Destrucción del modal efímero
         modal.remove();
     };
 };
@@ -931,14 +1071,11 @@ window.addCustomContext = async function() {
     const val = input.value.trim();
     if(val) {
         const name = val.startsWith('@') ? val : '@' + val;
-        
-        // Prevención estricta: asignación de color por defecto si no se seleccionó ninguno
         const safeColor = (typeof manageSelectedColor !== 'undefined' && manageSelectedColor) ? manageSelectedColor : 'gray';
         
         customContexts.push({name: name, color: safeColor});
         await saveData();
         
-        // Purga de la variable temporal
         manageSelectedColor = 'gray'; 
         renderManageItems();
         if(typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
@@ -948,13 +1085,11 @@ window.addCustomContext = async function() {
 window.selectManageColor = function(color) {
     manageSelectedColor = color;
     
-    // Rescate del estado previo a la destrucción del DOM
     const inputDOM = document.getElementById('newContextInput');
     const currentText = inputDOM ? inputDOM.value : '';
     
     renderManageItems();
     
-    // Re-inyección del texto para no interrumpir el flujo de escritura
     const restoredInput = document.getElementById('newContextInput');
     if (restoredInput) {
         restoredInput.value = currentText;
@@ -962,30 +1097,6 @@ window.selectManageColor = function(color) {
     }
 };
 
-window.addCustomContext = async function() {
-    const input = document.getElementById('newContextInput');
-    if (!input) return;
-    
-    const val = input.value.trim();
-    if(val) {
-        const name = val.startsWith('@') ? val : '@' + val;
-        
-        // Prevención estricta: si el usuario no tocó ningún color, se asigna uno por defecto
-        const safeColor = (typeof manageSelectedColor !== 'undefined' && manageSelectedColor) ? manageSelectedColor : 'gray';
-        
-        customContexts.push({name: name, color: safeColor});
-        await saveData();
-        
-        // Purga de la variable en memoria para que no contamine la creación del siguiente contexto
-        manageSelectedColor = 'gray';
-        renderManageItems();
-        
-        if(typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
-    }
-};
-
-// Controladores globales para la jerarquización manual anexados directamente al objeto window
-// Se omiten las declaraciones "let" a nivel de raíz para erradicar el riesgo de SyntaxError
 window.dragStartArea = function(event, index) {
     window.draggedAreaIndex = index;
     event.dataTransfer.effectAllowed = 'move';
@@ -1001,14 +1112,11 @@ window.dropArea = async function(event, targetIndex) {
     event.preventDefault();
     if (typeof window.draggedAreaIndex === 'undefined' || window.draggedAreaIndex === null || window.draggedAreaIndex === targetIndex) return;
 
-    // Mutación quirúrgica de la matriz posicional
     const areaToMove = customAreas.splice(window.draggedAreaIndex, 1)[0];
     customAreas.splice(targetIndex, 0, areaToMove);
     
-    // Purga de la variable temporal en memoria
     window.draggedAreaIndex = null;
 
-    // Consolidación y renderizado
     if (typeof saveData === 'function') await saveData();
     renderManageItems();
     if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
@@ -1016,11 +1124,10 @@ window.dropArea = async function(event, targetIndex) {
 
 function renderManageItems() {
     const container = document.getElementById('manageModalContent');
-    if (!container) return; // Blindaje contra nodos de interfaz inexistentes
+    if (!container) return;
     
     const colorHexMap = { 'blue': '#3b82f6', 'purple': '#a855f7', 'green': '#22c55e', 'red': '#ef4444', 'orange': '#f97316', 'gray': '#6b7280', 'pink': '#ec4899', 'teal': '#14b8a6', 'yellow': '#eab308', 'cyan': '#06b6d4', 'indigo': '#6366f1', 'rose': '#f43f5e', 'emerald': '#10b981', 'fuchsia': '#d946ef' };
     
-    // Evaluación segura de la variable de color para evitar ReferenceError si no fue instanciada
     const currentSelectedColor = typeof manageSelectedColor !== 'undefined' ? manageSelectedColor : null;
 
     let colorSwatches = Object.keys(colorHexMap).map(c => `
@@ -1091,59 +1198,15 @@ function renderManageItems() {
     container.innerHTML = html;
 }
 
-async function setTaskStatus(id, newStatus) { findAndMutateTask(id, (nodes, i) => { nodes[i].status = newStatus; }); renderTasks(); renderCalendar(); await saveData(); }
-async function restoreTask(id) { if (findAndMutateTask(id, (nodes, i) => { nodes[i].isDeleted = false; delete nodes[i].deletedAt; })) { refreshAllDropdowns(); renderTasks(); renderCalendar(); showNotice("Tarea restaurada"); await saveData(); } }
-async function hardDeleteTask(id) { showConfirm("Eliminar", "¿Eliminar definitivamente?", async () => { if (findAndMutateTask(id, (nodes, i) => nodes.splice(i, 1))) { refreshAllDropdowns(); renderTasks(); showNotice("Eliminada"); await saveData(); } }, true); }
-// Vaciar toda la papelera (Refactorizado)
-window.emptyTrash = async function() {
-    let hasDeletedTasks = false;
-    
-    // 1. Verificación previa de seguridad
-    function checkDeleted(nodes) {
-        for (let node of nodes) {
-            if (node.isDeleted) return true;
-            if (node.subtasks && checkDeleted(node.subtasks)) return true;
-        }
-        return false;
-    }
-    
-    if (typeof tasks !== 'undefined') hasDeletedTasks = checkDeleted(tasks);
+async function setTaskStatus(id, newStatus) { 
+    findAndMutateTask(id, (nodes, i) => { 
+        nodes[i].status = newStatus; 
+    }); 
+    renderTasks(); 
+    renderCalendar(); 
+    await saveData(); 
+}
 
-    if (!hasDeletedTasks) {
-        if (typeof showNotice === 'function') showNotice("La papelera ya está vacía");
-        return;
-    }
-
-    // 2. Ejecución con persistencia estricta
-    if (typeof showConfirm === 'function') {
-        showConfirm(
-            "Vaciar Papelera", 
-            "¿Estás seguro de eliminar definitivamente todas las tareas de la papelera? Esta acción es irreversible y purgará la base de datos.", 
-            async () => {
-                function clearDeletedNodes(nodes) {
-                    for (let i = nodes.length - 1; i >= 0; i--) {
-                        if (nodes[i].isDeleted) {
-                            nodes.splice(i, 1);
-                        } else if (nodes[i].subtasks) {
-                            clearDeletedNodes(nodes[i].subtasks);
-                        }
-                    }
-                }
-                
-                if (typeof tasks !== 'undefined') {
-                    clearDeletedNodes(tasks);
-                    if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
-                    if (typeof renderTasks === 'function') renderTasks();
-                    if (typeof showNotice === 'function') showNotice("Papelera vaciada por completo");
-                    if (typeof saveData === 'function') await saveData(); // Persistencia forzada
-                }
-            }, 
-            true
-        );
-    }
-};
-
-// BULK ACTIONS
 // BULK ACTIONS
 window.toggleBulkMode = function() { 
     isBulkMode = !isBulkMode; 
@@ -1154,7 +1217,6 @@ window.toggleBulkMode = function() {
     if (bar) {
         bar.classList.toggle('translate-y-32', !isBulkMode); 
         bar.classList.toggle('opacity-0', !isBulkMode); 
-        // Elevación forzada para evitar solapamiento de capas invisibles
         bar.style.zIndex = isBulkMode ? "9999" : "-1";
     }
     
@@ -1192,10 +1254,10 @@ window.updateBulkButtonsState = function() {
         }
     });
 };
+
 window.bulkDelete = function() { 
     if (selectedTaskIds.size === 0) return; 
 
-    // 1. Aislamos la lógica de mutación
     const executeBulkDeletion = async () => {
         selectedTaskIds.forEach(id => {
             findAndMutateTask(id, (nodes, i) => { 
@@ -1209,22 +1271,33 @@ window.bulkDelete = function() {
         await saveData(); 
     };
 
-    // 2. Delegamos el control usando el nombre correcto de tu UI
     if (typeof showConfirm === 'function') {
         showConfirm(
             "Eliminar tareas", 
             `¿Seguro que querés enviar ${selectedTaskIds.size} tareas a la papelera?`, 
             executeBulkDeletion
         );
-    } else {
-        console.error("Fallo de acoplamiento: showConfirm no está definida en el entorno global.");
     }
 };
+
+// CORRECCIÓN: bulkComplete ahora es secuencial para evitar múltiples renderizados
 window.bulkComplete = async function() { 
     if (selectedTaskIds.size === 0) return; 
-    selectedTaskIds.forEach(id => toggleTaskUniversal(id)); 
+    
+    // Procesar todas las tareas sin renderizar entre cada una
+    for (const id of selectedTaskIds) {
+        findAndMutateTask(id, (nodes, i) => {
+            const t = nodes[i];
+            if (t.status !== 'completed') {
+                t.status = 'completed';
+                t.completedAt = Date.now();
+            }
+        });
+    }
+    
     toggleBulkMode(); 
     renderTasks(); 
+    renderCalendar();
     showNotice("Tareas actualizadas"); 
     await saveData(); 
 };
@@ -1238,11 +1311,10 @@ window.bulkPostpone = function() {
         document.getElementById('postponeModal').classList.remove('hidden');
     }
 };
+
 async function applyBulkMove() {
-    // 1. UI: Recolectar datos
     const formData = getBulkMoveFormData();
     
-    // 2. Modelo: Mutar las tareas seleccionadas
     selectedTaskIds.forEach(id => {
         findAndMutateTask(id, (nodes, i) => {
             nodes[i].area = formData.newArea;
@@ -1252,37 +1324,34 @@ async function applyBulkMove() {
         });
     });
     
-    // 3. UI: Refrescar interfaz y cerrar modales
     if (typeof toggleBulkMode === 'function') toggleBulkMode();
     if (typeof closeBulkMoveModal === 'function') closeBulkMoveModal();
     refreshAllDropdowns();
     renderTasks();
     showNotice("Tareas reubicadas");
     
-    // 4. Cloud: Persistencia
     await saveData();
 }
 window.applyBulkMove = applyBulkMove;
+
 // POSTPONE ACTIONS
+// CORRECCIÓN: Uso de formatDateLocal para evitar bugs de zona horaria
 async function postponeAction(type) { 
     let fd = ''; 
     
-    // Cálculos de fecha
     if (type === 'tomorrow') { 
         const tom = new Date(); 
         tom.setDate(tom.getDate() + 1); 
-        fd = tom.toISOString().split('T')[0]; 
+        fd = formatDateLocal(tom);
     } else if (type === 'nextWeek') { 
         const nw = new Date(); 
         nw.setDate(nw.getDate() + 7); 
-        fd = nw.toISOString().split('T')[0]; 
+        fd = formatDateLocal(nw);
     } else if (type === 'custom') { 
-        // 1. UI: Recolectar fecha personalizada
         fd = getPostponeCustomDateValue(); 
         if (!fd) return; 
     } 
     
-    // 2. Modelo: Aplicar mutación
     if (postponeState.id === 'bulk') { 
         selectedTaskIds.forEach(taskId => {
             findAndMutateTask(taskId, (nodes, i) => { nodes[i].date = fd; });
@@ -1292,14 +1361,14 @@ async function postponeAction(type) {
         findAndMutateTask(postponeState.id, (nodes, i) => { nodes[i].date = fd; }); 
     } 
     
-    // 3. UI: Refrescar interfaz
     if (typeof closePostponeModal === 'function') closePostponeModal(); 
     if (typeof renderTasks === 'function') renderTasks(); 
+    if (typeof renderCalendar === 'function') renderCalendar();
     
-    // 4. Cloud: Persistencia
     await saveData(); 
 }
 window.postponeAction = postponeAction;
+
 // FILE UPLOAD AND ATTACHMENTS
 window.handleFileUpload = async function(event, mode) {
     const file = event.target.files[0];
@@ -1313,7 +1382,6 @@ window.handleFileUpload = async function(event, mode) {
         const base64Content = e.target.result.split(',')[1];
         
         try {
-            // Corrección estructural: se alinea el identificador con el parámetro esperado por el servidor
             const payload = {
                 action: 'uploadFile', 
                 fileName: file.name,
@@ -1340,11 +1408,8 @@ window.handleFileUpload = async function(event, mode) {
             
             try {
                 const parsed = JSON.parse(finalUrl);
-                // El servidor devuelve un objeto con la propiedad 'url', la cual es interceptada aquí
                 finalUrl = parsed.url || parsed.link || parsed.fileUrl || parsed.fileId || finalUrl;
-            } catch (jsonError) {
-                // Silenciamiento del error de parseo si el servidor devuelve texto plano
-            }
+            } catch (jsonError) {}
 
             if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
                 console.error("Respuesta anómala del servidor:", serverResponse);
@@ -1379,7 +1444,6 @@ window.handleFileUpload = async function(event, mode) {
 };
 
 function renderAttachments() {
-    // Iteración simultánea sobre los contenedores de "Crear" y "Editar" sin depender del parámetro 'mode'
     ['attachmentsList', 'editAttachmentsList'].forEach(containerId => {
         const container = document.getElementById(containerId);
         if (!container) return; 
@@ -1390,7 +1454,6 @@ function renderAttachments() {
             const div = document.createElement('div');
             div.className = "flex justify-between items-center bg-navy-800 p-2 rounded text-xs text-navy-50 mb-1 border border-navy-700";
             
-            // Extracción robusta del enlace histórico o actual
             const fileUrl = file.data || file.url || file.link || file.fileUrl;
             const isValidLink = typeof fileUrl === 'string' && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('data:'));
             
@@ -1416,160 +1479,50 @@ function processOmnibarCommand() { showNotice("Comando procesado localmente (Sim
 function handleOmnibarKeydown(event) { if (event.key === 'Enter') processOmnibarCommand(); }
 function breakdownTaskWithAI() { showNotice("Funcionalidad de IA en desarrollo."); }
 
-// --- ORQUESTACIÓN Y ESTADO GLOBAL UNIFICADO ---
-// Puente de sincronización: ata las variables léxicas al objeto global por referencia
-function syncGlobals() {
-    if (typeof currentState !== 'undefined' && !window.currentState) window.currentState = currentState;
-    if (typeof currentFilters !== 'undefined' && !window.currentFilters) window.currentFilters = currentFilters;
-}
-
-window.updateFilters = function() {
-    syncGlobals();
-    if (window.currentFilters) {
-        window.currentFilters.search = document.getElementById('searchInput') ? document.getElementById('searchInput').value.trim() : '';
-        window.currentFilters.status = document.getElementById('filterStatus') ? document.getElementById('filterStatus').value : 'pending';
-        window.currentFilters.priority = document.getElementById('filterPriority') ? document.getElementById('filterPriority').value : 'all';
-        window.currentFilters.context = document.getElementById('filterContext') ? document.getElementById('filterContext').value : 'all';
-    }
-    if (typeof window.renderTasks === 'function') window.renderTasks();
-};
-
-window.resetFilters = function() {
-    syncGlobals();
-    if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
-    
-    const defaultStatus = (window.currentState && window.currentState.view === 'all') ? 'all' : 'pending';
-    
-    if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = defaultStatus;
-    if (document.getElementById('filterPriority')) document.getElementById('filterPriority').value = 'all';
-    if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
-    
-    if (document.getElementById('sortSelect')) {
-        document.getElementById('sortSelect').value = 'date-asc';
-        if (typeof currentSort !== 'undefined') currentSort = { by: 'date', order: 'asc' };
-    }
-    
-    window.updateFilters();
-    if (typeof showNotice === 'function') showNotice("Filtros restablecidos");
-};
-
-window.navigate = function(view, areaName = null, pushHistory = true, focusId = null) {
-    syncGlobals();
-    if (!window.currentState) return;
-    
-    if (pushHistory && typeof navHistory !== 'undefined') {
-        navHistory.push(JSON.parse(JSON.stringify(window.currentState)));
-    }
-    
-    window.currentState.view = view;
-    window.currentState.selectedArea = areaName;
-    window.currentState.focusTargetId = focusId;
-    
-    if (window.innerWidth < 768 && typeof toggleSidebar === 'function') toggleSidebar(false);
-
-    if (window.currentFilters) {
-        window.currentFilters.search = '';
-        window.currentFilters.priority = 'all';
-        window.currentFilters.context = 'all';
-        window.currentFilters.status = (view === 'all') ? 'all' : 'pending';
-        
-        if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
-        if (document.getElementById('filterPriority')) document.getElementById('filterPriority').value = 'all';
-        if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
-        if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = window.currentFilters.status;
-    }
-    
-    // Invocamos updateUI (que está más arriba en app.js) para pintar la estructura
-    if (typeof updateUI === 'function') updateUI(); 
-};
-// --- MOTOR DE PAPELERA: RESTAURACIÓN Y DESTRUCCIÓN ---
-
-window.restaurarTarea = async function(id) {
-    if (!id) return;
-    
-    // Busca la tarea en la memoria y le quita la marca de eliminada
-    findAndMutateTask(id, (nodes, i) => {
-        nodes[i].isDeleted = false;
-    });
-    
-    // Refresca la pantalla y guarda en la base de datos
-    if (typeof renderTasks === 'function') renderTasks();
-    if (typeof saveData === 'function') await saveData();
-    if (typeof showNotice === 'function') showNotice("Tarea restaurada a pendientes.");
-};
-
-window.destruirTarea = async function(id) {
-    if (!id) return;
-    
-    // Invocamos a tu modal estético y esperamos el clic (await)
-    const confirmacion = await window.pedirConfirmacionVisual(
-        "Destruir registro",
-        "¿Estás seguro? La o las tareas serán eliminadas de forma permanente de la base de datos."
-    );
-    
-    if (!confirmacion) return; // Si hace clic en Cancelar, el código muere aquí.
-    
-    // Si hace clic en Confirmar, ejecutamos la purga
-    findAndMutateTask(id, (nodes, i) => {
-        nodes.splice(i, 1); 
-    });
-
-    if (typeof renderTasks === 'function') renderTasks();
-    if (typeof saveData === 'function') await saveData();
-    if (typeof showNotice === 'function') showNotice("Registro destruido definitivamente.");
-};
-
-// --- CONTROLADOR DE CONFIRMACIÓN VISUAL ---
+// CONTROLADOR DE CONFIRMACIÓN VISUAL (Sistema unificado)
 window.resolveConfirmacion = null;
 
 window.pedirConfirmacionVisual = function(titulo, mensaje) {
     return new Promise((resolve) => {
-        // 1. Inyectamos los textos en tu diseño
         document.getElementById('confirmModalTitle').innerText = titulo;
         document.getElementById('confirmModalMessage').innerText = mensaje;
         
-        // 2. Modificamos el botón de acción para que luzca destructivo (rojo)
         const btnConfirmar = document.getElementById('confirmModalBtnAction');
         btnConfirmar.className = "w-1/2 bg-danger-600 text-navy-50 py-3 rounded-md text-sm font-semibold hover:bg-danger-500 transition-colors focus:outline-none";
         btnConfirmar.innerText = "Destruir definitivamente";
 
-        // 3. Hacemos visible el modal
         document.getElementById('confirmModal').classList.remove('hidden');
         
-        // 4. Guardamos la llave de la promesa en memoria
         window.resolveConfirmacion = resolve;
     });
 };
 
-// Esta es la función que tus botones de HTML ya están llamando en el onclick
 window.closeConfirmModal = function(resultado) {
     document.getElementById('confirmModal').classList.add('hidden');
     
-    // 1. VÍA ORIGINAL: Ejecuta el envío a la papelera (Bulk Edition y Tareas complejas)
+    // VÍA ORIGINAL: Callbacks (para showConfirm)
     if (resultado && typeof confirmCallback === 'function') {
         confirmCallback();
     }
-    // Limpieza de memoria de la vía original
     if (typeof confirmCallback !== 'undefined') {
         confirmCallback = null;
     }
     
-    // 2. VÍA NUEVA: Ejecuta la destrucción definitiva de la papelera
+    // VÍA NUEVA: Promesas (para pedirConfirmacionVisual)
     if (window.resolveConfirmacion) {
         window.resolveConfirmacion(resultado); 
         window.resolveConfirmacion = null;
     }
 };
-// Delegación de eventos ultra-robusta
+
+// Delegación de eventos
 document.addEventListener('click', function(e) {
-    // Buscamos el elemento .task-item más cercano al clic
     const taskItem = e.target.closest('.task-item');
     
     if (taskItem) {
         const taskId = taskItem.dataset.id;
         console.log("¡Clic interceptado en tarea:", taskId);
         
-        // Verificamos si el clic fue en el nombre de la tarea para editar
         if (e.target.classList.contains('task-name')) {
             if (typeof window.openEditModal === 'function') {
                 window.openEditModal(Number(taskId));
@@ -1577,134 +1530,13 @@ document.addEventListener('click', function(e) {
         }
     }
 });
-// Restaurar tarea desde la papelera
-window.restoreTaskNative = async function(id) {
-    if (typeof findAndMutateTask === 'function') {
-        findAndMutateTask(id, (nodes, i) => {
-            nodes[i].isDeleted = false;
-            nodes[i].deletedAt = null;
-        });
-        if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
-        if (typeof renderTasks === 'function') renderTasks();
-        if (typeof showNotice === 'function') showNotice("Tarea restaurada con éxito");
-        if (typeof saveData === 'function') await saveData();
-    }
-};
 
-// Eliminación destructiva (Hard Delete)
-window.hardDeleteTaskNative = function(id) {
-    if (typeof showConfirm === 'function') {
-        showConfirm("Atención: Borrado Definitivo", "Esta acción eliminará la tarea de la base de datos de manera permanente y no se puede deshacer. ¿Continuar?", async () => {
-            
-            // Función recursiva para erradicar el nodo del array en memoria
-            function removeNode(nodes) {
-                for (let i = 0; i < nodes.length; i++) {
-                    if (nodes[i].id === id) {
-                        nodes.splice(i, 1);
-                        return true;
-                    }
-                    if (nodes[i].subtasks && removeNode(nodes[i].subtasks)) return true;
-                }
-                return false;
-            }
-            
-            if (typeof tasks !== 'undefined') {
-                removeNode(tasks);
-                if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
-                if (typeof renderTasks === 'function') renderTasks();
-                if (typeof showNotice === 'function') showNotice("Registro eliminado de la base de datos");
-                if (typeof saveData === 'function') await saveData();
-            }
-        }, true);
-    }
-};
-// Vaciar toda la papelera
-window.emptyTrashNative = function() {
-    // Verificamos si hay algo que borrar antes de abrir el modal
-    let hasDeletedTasks = false;
-    function checkDeleted(nodes) {
-        for (let node of nodes) {
-            if (node.isDeleted) return true;
-            if (node.subtasks && checkDeleted(node.subtasks)) return true;
-        }
-        return false;
-    }
-    
-    if (typeof tasks !== 'undefined') {
-        hasDeletedTasks = checkDeleted(tasks);
-    }
-
-    if (!hasDeletedTasks) {
-        if (typeof showNotice === 'function') showNotice("La papelera ya está vacía");
-        return;
-    }
-
-    if (typeof showConfirm === 'function') {
-        showConfirm(
-            "Vaciar Papelera", 
-            "¿Estás seguro de eliminar definitivamente todas las tareas de la papelera? Esta acción es irreversible y purgará la base de datos.", 
-            async () => {
-                // Función recursiva inversa para evitar saltos de índice al hacer splice
-                function clearDeletedNodes(nodes) {
-                    for (let i = nodes.length - 1; i >= 0; i--) {
-                        if (nodes[i].isDeleted) {
-                            nodes.splice(i, 1);
-                        } else if (nodes[i].subtasks) {
-                            clearDeletedNodes(nodes[i].subtasks);
-                        }
-                    }
-                }
-                
-                if (typeof tasks !== 'undefined') {
-                    clearDeletedNodes(tasks);
-                    if (typeof refreshAllDropdowns === 'function') refreshAllDropdowns();
-                    if (typeof renderTasks === 'function') renderTasks();
-                    if (typeof showNotice === 'function') showNotice("Papelera vaciada por completo");
-                    if (typeof saveData === 'function') await saveData();
-                }
-            }, 
-            true
-        );
-    }
-};
-window.syncViewUI = function() {
-    // 1. Sincronización del Título Principal
-    const viewTitles = {
-        'today': 'Hoy y atrasadas',
-        'all': 'Todas las tareas',
-        'focus': 'Modo Enfoque',
-        'trash': 'Papelera'
-    };
-
-    // Ajustá 'viewTitle' por el ID real que tenga tu etiqueta <h2> o <h1> en el HTML
-    const titleElement = document.getElementById('viewTitle') || document.querySelector('.main-header h2');
-    if (titleElement && viewTitles[currentState.view]) {
-        titleElement.textContent = viewTitles[currentState.view];
-    }
-
-    // 2. Sincronización de la Barra Lateral
-    // Interceptamos los botones basándonos en su atributo onclick
-    const sidebarButtons = document.querySelectorAll('[onclick*="changeView"], [onclick*="setView"], [onclick*="switchView"]');
-    
-    sidebarButtons.forEach(btn => {
-        // Removemos las clases de estado "activo" de todos los botones
-        btn.classList.remove('bg-navy-700', 'text-brand-500', 'font-semibold');
-        
-        // Comprobamos si este botón invoca a la vista que está actualmente en el estado
-        if (btn.getAttribute('onclick').includes(currentState.view)) {
-            // Aplicamos las clases de iluminación al botón correspondiente
-            btn.classList.add('bg-navy-700', 'text-brand-500', 'font-semibold');
-        }
-    });
-};
-// Función autónoma y segura para cambiar el estado de la tarea
 window.toggleProgressSafe = async function(id, event) {
-    if (event) event.stopPropagation(); // Frenamos el clic para que no abra el modal
+    if (event) event.stopPropagation();
     
     let found = false;
     let newStatus = "";
     
-    // Recorrido directo sobre el árbol en memoria
     function traverse(nodes) {
         for (let i = 0; i < nodes.length; i++) {
             if (nodes[i].id === id) {
@@ -1721,7 +1553,6 @@ window.toggleProgressSafe = async function(id, event) {
     if (typeof tasks !== 'undefined') {
         traverse(tasks);
         if (found) {
-            // Invocamos actualización de UI y persistencia
             if (typeof renderTasks === 'function') renderTasks();
             if (typeof showNotice === 'function') showNotice(newStatus === 'in_progress' ? "Tarea en progreso" : "Tarea pausada");
             if (typeof saveData === 'function') await saveData();
@@ -1729,13 +1560,11 @@ window.toggleProgressSafe = async function(id, event) {
     }
 };
 
-// Función segura para inyectar el ID del padre al crear subtarea
 window.prepareSubtaskSafe = function(id, event) {
     if (event) event.stopPropagation();
     
     if (typeof openAddTaskModal === 'function') {
         openAddTaskModal();
-        // Retardo estratégico para que el DOM termine de dibujar el <select>
         setTimeout(() => {
             const parentDropdown = document.getElementById('parentInput');
             if (parentDropdown) {
