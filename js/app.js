@@ -500,73 +500,6 @@ function importData(event) { const file = event.target.files[0]; if (!file) retu
         saveCategories();
     }
 window.refreshAllDropdowns = refreshAllDropdowns;
-// NAVIGATION & FILTERS CONTINUATION
-function updateFilters() {
-    if (!window.currentFilters) {
-        window.currentFilters = { search: '', status: 'pending', priority: 'all', context: 'all' };
-    }
-    
-    const searchEl = document.getElementById('searchInput');
-    const statusEl = document.getElementById('filterStatus');
-    const priorityEl = document.getElementById('filterPriority');
-    const contextEl = document.getElementById('filterContext');
-
-    currentFilters = {
-        search: searchEl ? searchEl.value.trim() : currentFilters.search,
-        status: statusEl ? statusEl.value : currentFilters.status,
-        priority: priorityEl ? priorityEl.value : currentFilters.priority,
-        context: contextEl ? contextEl.value : currentFilters.context
-    };
-
-    if (typeof renderTasks === 'function') renderTasks();
-}
-
-// --- DEBOUNCE PARA PROTECCIÓN DEL HILO PRINCIPAL ---
-window.searchTimeout = null;
-window.handleSearchInput = function() {
-    clearTimeout(window.searchTimeout);
-    window.searchTimeout = setTimeout(() => {
-        window.updateFilters();
-    }, 300); // 300ms de retraso estricto
-};
-
-// --- EL TRADUCTOR AST ---
-window.updateFilters = function() {
-    let queryParts = [];
-
-    // 1. Lectura del input de texto libre
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput && searchInput.value.trim() !== '') {
-        queryParts.push(searchInput.value.trim());
-    }
-
-    // 2. Traducción de los desplegables tradicionales a gramática AST
-    const statusVal = document.getElementById('filterStatus') ? document.getElementById('filterStatus').value : 'pending';
-    if (statusVal === 'completed') queryParts.push('status:completed');
-    if (statusVal === 'in_progress') queryParts.push('status:in_progress');
-
-    const priorityVal = document.getElementById('filterPriority') ? document.getElementById('filterPriority').value : 'all';
-    if (priorityVal !== 'all') queryParts.push(`priority:${priorityVal}`);
-
-    const contextVal = document.getElementById('filterContext') ? document.getElementById('filterContext').value : 'all';
-    if (contextVal !== 'all') {
-        // Envolvemos en comillas por si el contexto tiene espacios (ej. "Reunión de equipo")
-        queryParts.push(`context:"${contextVal}"`); 
-    }
-
-    // 3. Ensamblaje y Compilación
-    const rawQuery = queryParts.join(' AND ');
-    
-    // Inyectamos el resultado del AST en el estado global
-    if (window.SearchEngine && typeof window.SearchEngine.compile === 'function') {
-        window.currentFilters = window.SearchEngine.compile(rawQuery);
-    } else {
-        console.warn("Bypass: SearchEngine no está disponible.");
-        window.currentFilters = { hasActiveQuery: false };
-    }
-
-    if (typeof window.renderTasks === 'function') window.renderTasks();
-};
 window.resetFilters = function() {
     if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
     
@@ -581,9 +514,7 @@ window.resetFilters = function() {
         document.getElementById('sortSelect').value = 'date-asc';
     }
     
-    window.updateFilters();
-    if (typeof showNotice === 'function') showNotice("Filtros restablecidos");
-};
+   };
 
 window.navigate = function(view, areaName = null, pushHistory = true, focusId = null) {
     if (!window.currentState) return;
@@ -604,8 +535,7 @@ window.navigate = function(view, areaName = null, pushHistory = true, focusId = 
     if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
     if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = defaultStatus;
     
-    window.updateFilters();
-    if (typeof window.updateUI === 'function') window.updateUI();
+
 };
 
 window.updateSort = function() { 
@@ -1415,16 +1345,6 @@ function processOmnibarCommand() { showNotice("Comando procesado localmente (Sim
 function handleOmnibarKeydown(event) { if (event.key === 'Enter') processOmnibarCommand(); }
 function breakdownTaskWithAI() { showNotice("Funcionalidad de IA en desarrollo."); }
 
-window.updateFilters = function() {
-    ();
-    if (window.currentFilters) {
-        window.currentFilters.search = document.getElementById('searchInput') ? document.getElementById('searchInput').value.trim() : '';
-        window.currentFilters.status = document.getElementById('filterStatus') ? document.getElementById('filterStatus').value : 'pending';
-        window.currentFilters.priority = document.getElementById('filterPriority') ? document.getElementById('filterPriority').value : 'all';
-        window.currentFilters.context = document.getElementById('filterContext') ? document.getElementById('filterContext').value : 'all';
-    }
-    if (typeof window.renderTasks === 'function') window.renderTasks();
-}; 
 // --- MOTOR DE PAPELERA: RESTAURACIÓN Y DESTRUCCIÓN ---
 
 window.restaurarTarea = async function(id) {
