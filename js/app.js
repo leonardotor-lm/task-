@@ -500,21 +500,6 @@ function importData(event) { const file = event.target.files[0]; if (!file) retu
         saveCategories();
     }
 window.refreshAllDropdowns = refreshAllDropdowns;
-window.resetFilters = function() {
-    if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
-    
-    const defaultStatus = (window.currentState && window.currentState.view === 'all') ? 'all' : 'pending';
-    
-    if (document.getElementById('filterStatus')) document.getElementById('filterStatus').value = defaultStatus;
-    if (document.getElementById('filterPriority')) document.getElementById('filterPriority').value = 'all';
-    if (document.getElementById('filterContext')) document.getElementById('filterContext').value = 'all';
-    
-    window.currentSort = { by: 'date', order: 'asc' };
-    if (document.getElementById('sortSelect')) {
-        document.getElementById('sortSelect').value = 'date-asc';
-    }
-    
-   };
 
 window.navigate = function(view, areaName = null, pushHistory = true, focusId = null) {
     if (!window.currentState) return;
