@@ -598,84 +598,99 @@ let actionButtonsHtml = '';
 }
 
 window.renderTasks = function() {
-    const list = document.getElementById('taskList'); 
-    const empty = document.getElementById('emptyState');
-    
-    // Sincronización estricta de estado global
-    const state = window.currentState || { view: 'area', selectedArea: 'Inbox' };
-    const filters = window.currentFilters || { search: '', status: 'pending', priority: 'all', context: 'all' };
-    const sortState = window.currentSort || { by: 'date', order: 'asc' }; // Inyección de parámetros de orden
-
-    let nodesToRender = [];
-    
-    if (state.view === 'trash') {
-        function collectDeleted(nodes) { nodes.forEach(n => { if (n.isDeleted) nodesToRender.push(n); else if (n.subtasks) collectDeleted(n.subtasks); }); }
-        if (typeof tasks !== 'undefined') collectDeleted(tasks); 
-        nodesToRender.sort((a,b) => (b.deletedAt || 0) - (a.deletedAt || 0));
-   } else {
-        // Uso estricto de las variables locales saneadas (state y filters)
-        const pruned = (typeof window.pruneTree === 'function' && typeof tasks !== 'undefined') ? window.pruneTree(tasks, state, filters) : (typeof pruneTree === 'function' ? pruneTree(tasks, state, filters) : []);        
-        
-        const isTemporalView = ['today', 'tomorrow', 'week', 'fortnight'].includes(state.view);
-    
-        const hasActiveSearch = typeof filters.search === 'string' && filters.search.trim() !== '';
-        const hasActivePriority = filters.priority && filters.priority !== 'all';
-        const hasActiveContext = filters.context && filters.context !== 'all';
-        const hasActiveStatus = filters.status && filters.status !== 'pending' && filters.status !== 'all';
-        
-        // El aplanamiento se activa obligatoriamente con cualquier filtro o en la vista global
-        const isFlatView = isTemporalView || hasActiveSearch || hasActivePriority || hasActiveContext || hasActiveStatus;
-        
-        nodesToRender = isFlatView ? (typeof window.flattenMatches === 'function' ? window.flattenMatches(pruned) : (typeof flattenMatches === 'function' ? flattenMatches(pruned) : [])) : pruned;
-
-        // MOTOR DE ORDENAMIENTO JERÁRQUICO
-        nodesToRender.sort((a, b) => {
-            // 1. Gravedad Estructural: Las tareas completadas se hunden, salvo si el usuario filtra explícitamente por ellas
-            if (filters.status !== 'completed' && state.view === 'all') {
-                const aComp = a.status === 'completed' ? 1 : 0;
-                const bComp = b.status === 'completed' ? 1 : 0;
-                if (aComp !== bComp) return aComp - bComp;
-            }
-
-            // 2. Ejecución Paramétrica: Evaluación sobre la variable seleccionada por el usuario
-            let result = 0;
-            if (sortState.by === 'date') {
-                const getTs = (t) => {
-                    if (filters.status === 'completed') {
-                        return t.completedAt ? new Date(t.completedAt).getTime() : (t.date ? new Date(t.date).getTime() : (t.id || 0));
-                    }
-                    return t.date ? new Date(t.date).getTime() : 9999999999999;
-                };
-                result = getTs(a) - getTs(b);
-            } else if (sortState.by === 'priority') {
-                const pVal = { 'alta': 3, 'media': 2, 'baja': 1, 'none': 0 };
-                const pA = pVal[a.priority] || 0;
-                const pB = pVal[b.priority] || 0;
-                result = pA - pB;
-            } else if (sortState.by === 'context') {
-                result = (a.context || '').localeCompare(b.context || '');
-            } else {
-                result = (a.name || '').localeCompare(b.name || '');
-            }
-            
-            // Inversión matemática si el usuario solicitó orden descendente
-            return sortState.order === 'desc' ? -result : result;
-        });
-    }
-    
-    if (nodesToRender.length === 0) { 
-        if (list) list.innerHTML = ''; 
-        if (empty) {
-            empty.innerText = state.view === 'trash' ? "La papelera está vacía." : "No se encontraron tareas bajo los criterios actuales."; 
-            empty.classList.remove('hidden'); 
+    try {
+        // 1. Blindaje de Memoria (Evita crash por localStorage corrupto)
+        if (typeof window.expandedStates === 'undefined') {
+            try { window.expandedStates = JSON.parse(localStorage.getItem('leo_expanded_states')) || {}; } 
+            catch (e) { window.expandedStates = {}; }
         }
-        return; 
-    }
-    
-    if (empty) empty.classList.add('hidden');
-    if (list) {
-        const renderFn = typeof window.buildTaskRows === 'function' ? window.buildTaskRows : (typeof buildTaskRows === 'function' ? buildTaskRows : () => '');
-        list.innerHTML = `<div id="taskList-root" class="flex flex-col min-h-[50px] pb-4">${renderFn(nodesToRender)}</div>`;
+        
+        const list = document.getElementById('taskList'); 
+        const empty = document.getElementById('emptyState');
+        
+        // 2. Extracción Estricta del Estado Global Híbrido
+        const state = window.currentState || { view: 'area', selectedArea: 'Inbox' };
+        const filters = window.currentFilters || {};
+        const sortState = window.currentSort || { by: 'date', order: 'asc' };
+        
+        // 3. Adaptador de Retrocompatibilidad (Puente entre el AST y pruneTree)
+        const legacyFilters = {
+            search: (filters.query && filters.query.rawText) ? filters.query.rawText : (filters.search || ''),
+            status: (filters.structured && filters.structured.status) ? filters.structured.status : (filters.status || 'pending'),
+            priority: (filters.structured && filters.structured.priority) ? filters.structured.priority : (filters.priority || 'all'),
+            context: (filters.structured && filters.structured.context) ? filters.structured.context : (filters.context || 'all')
+        };
+
+        let nodesToRender = [];
+        
+        if (state.view === 'trash') {
+            function collectDeleted(nodes) { nodes.forEach(n => { if (n.isDeleted) nodesToRender.push(n); else if (n.subtasks) collectDeleted(n.subtasks); }); }
+            if (typeof tasks !== 'undefined') collectDeleted(tasks); 
+            nodesToRender.sort((a,b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+        } else {
+            // 4. Invocación de poda con datos traducidos
+            const pruned = (typeof window.pruneTree === 'function' && typeof tasks !== 'undefined') 
+                ? window.pruneTree(tasks, state, legacyFilters) 
+                : (typeof pruneTree === 'function' ? pruneTree(tasks, state, legacyFilters) : []);
+            
+            const isTemporalView = ['today', 'tomorrow', 'week', 'fortnight'].includes(state.view);
+            const hasActiveSearch = legacyFilters.search.trim() !== '';
+            const hasActivePriority = legacyFilters.priority !== 'all';
+            const hasActiveContext = legacyFilters.context !== 'all';
+            const hasActiveStatus = legacyFilters.status !== 'pending' && legacyFilters.status !== 'all';
+            
+            const isFlatView = isTemporalView || hasActiveSearch || hasActivePriority || hasActiveContext || hasActiveStatus;
+            
+            nodesToRender = isFlatView ? (typeof window.flattenMatches === 'function' ? window.flattenMatches(pruned) : (typeof flattenMatches === 'function' ? flattenMatches(pruned) : [])) : pruned;
+
+            // 5. Motor de Ordenamiento
+            nodesToRender.sort((a, b) => {
+                if (legacyFilters.status !== 'completed' && state.view === 'all') {
+                    const aComp = a.status === 'completed' ? 1 : 0;
+                    const bComp = b.status === 'completed' ? 1 : 0;
+                    if (aComp !== bComp) return aComp - bComp;
+                }
+
+                let result = 0;
+                if (sortState.by === 'date') {
+                    const getTs = (t) => {
+                        if (legacyFilters.status === 'completed') {
+                            return t.completedAt ? new Date(t.completedAt).getTime() : (t.date ? new Date(t.date).getTime() : (t.id || 0));
+                        }
+                        return t.date ? new Date(t.date).getTime() : 9999999999999;
+                    };
+                    result = getTs(a) - getTs(b);
+                } else if (sortState.by === 'priority') {
+                    const pVal = { 'alta': 3, 'media': 2, 'baja': 1, 'none': 0 };
+                    result = (pVal[a.priority] || 0) - (pVal[b.priority] || 0);
+                } else if (sortState.by === 'context') {
+                    result = (a.context || '').localeCompare(b.context || '');
+                } else {
+                    result = (a.name || '').localeCompare(b.name || '');
+                }
+                
+                return sortState.order === 'desc' ? -result : result;
+            });
+        }
+        
+        // 6. Inyección final al DOM
+        if (nodesToRender.length === 0) { 
+            if (list) list.innerHTML = ''; 
+            if (empty) {
+                empty.innerText = state.view === 'trash' ? "La papelera está vacía." : "No se encontraron tareas bajo los criterios actuales."; 
+                empty.classList.remove('hidden'); 
+            }
+            return; 
+        }
+        
+        if (empty) empty.classList.add('hidden');
+        if (list) {
+            const renderFn = typeof window.buildTaskRows === 'function' ? window.buildTaskRows : (typeof buildTaskRows === 'function' ? buildTaskRows : () => '');
+            list.innerHTML = `<div id="taskList-root" class="flex flex-col min-h-[50px] pb-4">${renderFn(nodesToRender)}</div>`;
+        }
+    } catch (criticalError) {
+        // La contención de fallos asegura que updateUI se ejecute aunque el renderizado falle
+        console.error("!! Crash silencioso interceptado en renderTasks:", criticalError);
     }
 };
 
